@@ -62,8 +62,9 @@ class _MealEditorPageState extends State<MealEditorPage> {
 
   String _formatArgumentError(ArgumentError error) {
     final parts = <String>[];
-    if (error.name != null && error.name!.isNotEmpty) {
-      parts.add('字段：${error.name}');
+    final fieldLabel = _fieldLabel(error.name);
+    if (fieldLabel != null) {
+      parts.add('字段：$fieldLabel');
     }
     if (error.invalidValue != null) {
       parts.add('当前值：${error.invalidValue}');
@@ -76,6 +77,23 @@ class _MealEditorPageState extends State<MealEditorPage> {
       return '当前方案参数无效，请返回“方案”页检查。';
     }
     return parts.join('；');
+  }
+
+  String? _fieldLabel(String? name) {
+    switch (name) {
+      case 'carbRatio':
+        return '碳水系数';
+      case 'roundingIncrement':
+        return '舍入模式';
+      case 'proteinFatRatio':
+        return '蛋白质脂肪系数';
+      case 'directWeightedCoefficients':
+        return '直接加权系数';
+      case 'equivalentCarbCoefficients':
+        return '等效碳水系数';
+      default:
+        return null;
+    }
   }
 
   bool _isProfileValidForCalculation(InsulinProfile profile) {
