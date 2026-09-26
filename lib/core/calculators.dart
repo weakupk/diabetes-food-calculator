@@ -32,20 +32,82 @@ class NutritionCalculator {
 class InsulinCalculator {
   const InsulinCalculator._();
 
+  static const supportedRoundingIncrements = {0.0, 0.5, 1.0};
+
+  static void validateProfile(InsulinProfile profile) {
+    if (profile.carbRatio <= 0) {
+      throw ArgumentError.value(
+        profile.carbRatio,
+        'carbRatio',
+        '碳水系数必须大于 0',
+      );
+    }
+    if (!supportedRoundingIncrements.contains(profile.roundingIncrement)) {
+      throw ArgumentError.value(
+        profile.roundingIncrement,
+        'roundingIncrement',
+        '舍入模式仅支持 0、0.5 或 1 U',
+      );
+    }
+    if (!profile.proteinFatEnabled) {
+      return;
+    }
+
+    switch (profile.formulaType) {
+      case ProteinFatFormulaType.directWeighted:
+        final proteinCoefficient = profile.proteinCoefficient ?? 0;
+        final fatCoefficient = profile.fatCoefficient ?? 0;
+        if (proteinCoefficient < 0 || fatCoefficient < 0) {
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'directWeightedCoefficients',
+            '直接加权系数不能为负数',
+          );
+        }
+        if (proteinCoefficient == 0 && fatCoefficient == 0) {
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'directWeightedCoefficients',
+            '至少需要一个蛋白质/脂肪系数',
+          );
+        }
+        break;
+      case ProteinFatFormulaType.equivalentCarbs:
+        final proteinCoefficient = profile.proteinCoefficient ?? 0;
+        final fatCoefficient = profile.fatCoefficient ?? 0;
+        if (proteinCoefficient < 0 || fatCoefficient < 0) {
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'equivalentCarbCoefficients',
+            '等效碳水系数不能为负数',
+          );
+        }
+        if (proteinCoefficient == 0 && fatCoefficient == 0) {
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'equivalentCarbCoefficients',
+            '至少需要一个蛋白质/脂肪换算系数',
+          );
+        }
+        break;
+      case ProteinFatFormulaType.totalGrams:
+        final ratio = profile.proteinCoefficient ?? 0;
+        if (ratio <= 0) {
+          throw ArgumentError.value(
+            ratio,
+            'proteinFatRatio',
+            '蛋白质脂肪系数必须大于 0',
+          );
+        }
+        break;
+    }
+  }
+
   static InsulinCalculationResult calculate({
     required Nutrients nutrients,
     required InsulinProfile profile,
   }) {
-    if (profile.carbRatio <= 0) {
-      throw ArgumentError.value(profile.carbRatio, 'carbRatio', '碳水系数必须大于 0');
-    }
-    if (profile.roundingIncrement <= 0) {
-      throw ArgumentError.value(
-        profile.roundingIncrement,
-        'roundingIncrement',
-        '舍入刻度必须大于 0',
-      );
-    }
+    validateProfile(profile);
 
     final carbUnits = nutrients.carbs / profile.carbRatio;
     double proteinFatUnits = 0;
@@ -58,12 +120,6 @@ class InsulinCalculator {
         case ProteinFatFormulaType.directWeighted:
           final proteinCoefficient = profile.proteinCoefficient ?? 0;
           final fatCoefficient = profile.fatCoefficient ?? 0;
-          if (proteinCoefficient < 0 || fatCoefficient < 0) {
-            throw ArgumentError('直接加权系数不能为负数');
-          }
-          if (proteinCoefficient == 0 && fatCoefficient == 0) {
-            throw ArgumentError('至少需要一个蛋白质/脂肪系数');
-          }
           proteinFatUnits =
               (nutrients.protein * proteinCoefficient) +
               (nutrients.fat * fatCoefficient);
@@ -71,15 +127,10 @@ class InsulinCalculator {
             '蛋白质/脂肪部分 = ${_fmt(nutrients.protein)} × ${_fmt(proteinCoefficient)} + '
             '${_fmt(nutrients.fat)} × ${_fmt(fatCoefficient)} = ${_fmt(proteinFatUnits)} U',
           );
+          break;
         case ProteinFatFormulaType.equivalentCarbs:
           final proteinCoefficient = profile.proteinCoefficient ?? 0;
           final fatCoefficient = profile.fatCoefficient ?? 0;
-          if (proteinCoefficient < 0 || fatCoefficient < 0) {
-            throw ArgumentError('等效碳水系数不能为负数');
-          }
-          if (proteinCoefficient == 0 && fatCoefficient == 0) {
-            throw ArgumentError('至少需要一个蛋白质/脂肪换算系数');
-          }
           final equivalentCarbs =
               (nutrients.protein * proteinCoefficient) +
               (nutrients.fat * fatCoefficient);
@@ -91,21 +142,16 @@ class InsulinCalculator {
           explanation.add(
             '蛋白质/脂肪部分 = ${_fmt(equivalentCarbs)} ÷ ${_fmt(profile.carbRatio)} = ${_fmt(proteinFatUnits)} U',
           );
+          break;
         case ProteinFatFormulaType.totalGrams:
           final ratio = profile.proteinCoefficient ?? 0;
-          if (ratio <= 0) {
-            throw ArgumentError.value(
-              ratio,
-              'proteinFatRatio',
-              '蛋白质脂肪系数必须大于 0',
-            );
-          }
           final grams = nutrients.protein + nutrients.fat;
           proteinFatUnits = grams / ratio;
           explanation.add(
             '蛋白质/脂肪部分 = (${_fmt(nutrients.protein)} + ${_fmt(nutrients.fat)}) ÷ ${_fmt(ratio)} '
             '= ${_fmt(proteinFatUnits)} U',
           );
+          break;
       }
     } else {
       explanation.add('蛋白质/脂肪部分已关闭');
@@ -119,9 +165,13 @@ class InsulinCalculator {
     explanation.add(
       '合计 = ${_fmt(carbUnits)} + ${_fmt(proteinFatUnits)} = ${_fmt(totalUnits)} U',
     );
-    explanation.add(
-      '按 ${_fmt(profile.roundingIncrement)} U 舍入后 = ${_fmt(roundedTotalUnits)} U',
-    );
+    if (profile.roundingIncrement == 0) {
+      explanation.add('舍入模式：不舍入，结果保持 ${_fmt(roundedTotalUnits)} U');
+    } else {
+      explanation.add(
+        '按 ${_fmt(profile.roundingIncrement)} U 舍入后 = ${_fmt(roundedTotalUnits)} U',
+      );
+    }
 
     return InsulinCalculationResult(
       carbUnits: carbUnits,
@@ -133,8 +183,11 @@ class InsulinCalculator {
   }
 
   static double roundToIncrement(double value, double increment) {
-    if (increment <= 0) {
-      throw ArgumentError.value(increment, 'increment', '舍入刻度必须大于 0');
+    if (!supportedRoundingIncrements.contains(increment)) {
+      throw ArgumentError.value(increment, 'increment', '舍入模式仅支持 0、0.5 或 1 U');
+    }
+    if (increment == 0) {
+      return value;
     }
     return (value / increment).round() * increment;
   }

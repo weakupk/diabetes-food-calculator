@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/calculators.dart';
 import '../../core/models.dart';
 import '../../data/app_database.dart';
 
@@ -71,18 +72,21 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     }
 
     setState(() => _saving = true);
+    final proteinCoefficientText = _proteinCoefficientController.text.trim();
+    final fatCoefficientText = _fatCoefficientController.text.trim();
     final profile = InsulinProfile(
       id: widget.profile?.id ?? AppDatabase.newId(),
       name: _nameController.text.trim(),
       carbRatio: double.parse(_carbRatioController.text.trim()),
       proteinFatEnabled: _proteinFatEnabled,
       formulaType: _formulaType,
-      proteinCoefficient: _proteinCoefficientController.text.trim().isEmpty
-          ? null
-          : double.parse(_proteinCoefficientController.text.trim()),
-      fatCoefficient: _fatCoefficientController.text.trim().isEmpty
-          ? null
-          : double.parse(_fatCoefficientController.text.trim()),
+      proteinCoefficient: !_proteinFatEnabled
+         ? null
+         : double.parse(proteinCoefficientText),
+      fatCoefficient:
+         !_proteinFatEnabled || _formulaType == ProteinFatFormulaType.totalGrams
+         ? null
+         : double.parse(fatCoefficientText),
       roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
       enabled: _enabled,
     );
@@ -121,7 +125,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
               child: const Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
-                  '重要说明：这是营养记录和公式计算工具，不是医疗设备或自动给药工具。所有参数和实际剂量必须由医生或糖尿病教育师确认。',
+                  '仅用于记录和公式计算，不构成医疗建议；参数和实际剂量需由医生或糖尿病教育师确认。',
                 ),
               ),
             ),
@@ -143,15 +147,18 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
                 decimal: true,
               ),
               decoration: const InputDecoration(labelText: '碳水系数（多少克碳水对应 1U）'),
-              validator: _validatePositive,
+              validator: _validateCarbRatio,
             ),
             TextFormField(
               controller: _roundingIncrementController,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: '舍入刻度（U）'),
-              validator: _validatePositive,
+              decoration: const InputDecoration(
+                labelText: '舍入模式（仅支持 0、0.5、1 U）',
+                helperText: '填 0 表示不舍入，填 0.5 或 1 表示按对应刻度舍入。',
+              ),
+              validator: _validateRoundingIncrement,
             ),
             SwitchListTile(
               value: _proteinFatEnabled,
@@ -188,6 +195,9 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
                   labelText: _formulaType == ProteinFatFormulaType.totalGrams
                       ? '蛋白质脂肪系数'
                       : '蛋白质相关系数',
+                  helperText: _formulaType == ProteinFatFormulaType.totalGrams
+                      ? null
+                      : '未使用该项时请填写 0。',
                 ),
                 validator: _validateFormulaPrimary,
               ),
@@ -202,6 +212,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
                         _formulaType == ProteinFatFormulaType.equivalentCarbs
                         ? '脂肪换算系数'
                         : '脂肪相关系数',
+                    helperText: '未使用该项时请填写 0。',
                   ),
                   validator: _validateFormulaSecondary,
                 ),
@@ -224,13 +235,27 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     );
   }
 
-  String? _validatePositive(String? value) {
+  String? _validateCarbRatio(String? value) {
     if (value == null || value.trim().isEmpty) {
       return '请输入数值';
     }
     final number = double.tryParse(value.trim());
     if (number == null || number <= 0) {
       return '请输入大于 0 的数字';
+    }
+    return null;
+  }
+
+  String? _validateRoundingIncrement(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return '请输入数值';
+    }
+    final number = double.tryParse(value.trim());
+    if (number == null) {
+      return '请输入有效数字';
+    }
+    if (!InsulinCalculator.supportedRoundingIncrements.contains(number)) {
+      return '仅支持 0、0.5 或 1';
     }
     return null;
   }

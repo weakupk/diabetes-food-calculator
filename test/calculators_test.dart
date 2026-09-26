@@ -126,8 +126,37 @@ void main() {
     });
 
     test('rounding increment should round to nearest step', () {
+      expect(InsulinCalculator.roundToIncrement(6, 0), 6);
+      expect(InsulinCalculator.roundToIncrement(5.26, 0), 5.26);
+      expect(InsulinCalculator.roundToIncrement(-1.25, 0), -1.25);
       expect(InsulinCalculator.roundToIncrement(5.24, 0.5), 5.0);
       expect(InsulinCalculator.roundToIncrement(5.26, 0.5), 5.5);
+      expect(InsulinCalculator.roundToIncrement(5.6, 1), 6.0);
+    });
+
+    test('no rounding mode should keep raw total units', () {
+      const profile = InsulinProfile(
+        id: 'no-rounding',
+        name: 'no rounding',
+        carbRatio: 10,
+        proteinFatEnabled: true,
+        formulaType: ProteinFatFormulaType.directWeighted,
+        proteinCoefficient: 0.1,
+        fatCoefficient: 0.05,
+        roundingIncrement: 0,
+        enabled: true,
+      );
+
+      final result = InsulinCalculator.calculate(
+        nutrients: nutrients,
+        profile: profile,
+      );
+
+      expect(result.roundedTotalUnits, closeTo(result.totalUnits, 0.0001));
+      expect(
+        result.explanation.last,
+        contains('舍入模式：不舍入'),
+      );
     });
 
     test('invalid coefficients should throw', () {
@@ -166,6 +195,29 @@ void main() {
           nutrients: nutrients,
           profile: invalidPfRatio,
         ),
+        throwsArgumentError,
+      );
+
+      const invalidRounding = InsulinProfile(
+        id: '6',
+        name: 'invalid rounding',
+        carbRatio: 10,
+        proteinFatEnabled: false,
+        formulaType: ProteinFatFormulaType.directWeighted,
+        proteinCoefficient: null,
+        fatCoefficient: null,
+        roundingIncrement: -0.5,
+        enabled: true,
+      );
+      expect(
+        () => InsulinCalculator.calculate(
+          nutrients: nutrients,
+          profile: invalidRounding,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => InsulinCalculator.roundToIncrement(5.2, 0.3),
         throwsArgumentError,
       );
     });
