@@ -39,6 +39,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
       _enabled = profile.enabled;
       _proteinFatEnabled = profile.proteinFatEnabled;
       _formulaType = profile.formulaType;
+      _confirmedByDoctor = true;
     }
   }
 

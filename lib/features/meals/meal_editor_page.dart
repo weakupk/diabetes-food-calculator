@@ -340,6 +340,14 @@ class _MealEditorPageState extends State<MealEditorPage> {
           FutureBuilder<List<InsulinProfile>>(
             future: _profilesFuture,
             builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
               final profiles = (snapshot.data ?? const <InsulinProfile>[])
                   .where((profile) => profile.enabled)
                   .toList(growable: false);
