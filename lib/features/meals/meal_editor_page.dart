@@ -60,6 +60,24 @@ class _MealEditorPageState extends State<MealEditorPage> {
     return value == 0 ? '不舍入' : '${formatNumber(value)} U';
   }
 
+  String _formatArgumentError(ArgumentError error) {
+    final parts = <String>[];
+    if (error.name != null && error.name!.isNotEmpty) {
+      parts.add('字段：${error.name}');
+    }
+    if (error.invalidValue != null) {
+      parts.add('当前值：${error.invalidValue}');
+    }
+    final message = error.message;
+    if (message != null) {
+      parts.add('$message');
+    }
+    if (parts.isEmpty) {
+      return '当前方案参数无效，请返回“方案”页检查。';
+    }
+    return parts.join('；');
+  }
+
   bool _isProfileValidForCalculation(InsulinProfile profile) {
     final isSupportedRounding =
         profile.roundingIncrement == 0 ||
@@ -438,8 +456,7 @@ class _MealEditorPageState extends State<MealEditorPage> {
                   profile: selected,
                 );
               } on ArgumentError catch (error) {
-                final message = error.message;
-                calculationError = message == null ? '当前方案参数无效' : '$message';
+                calculationError = _formatArgumentError(error);
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
