@@ -434,7 +434,8 @@ class _MealEditorPageState extends State<MealEditorPage> {
                   profile: selected,
                 );
               } on ArgumentError catch (error) {
-                calculationError = error.message?.toString() ?? '当前方案参数无效';
+                final message = error.message;
+                calculationError = message == null ? '当前方案参数无效' : '$message';
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
