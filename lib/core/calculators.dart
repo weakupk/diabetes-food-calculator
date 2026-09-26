@@ -32,7 +32,7 @@ class NutritionCalculator {
 class InsulinCalculator {
   const InsulinCalculator._();
 
-  static const supportedRoundingIncrements = {0.0, 0.5, 1.0};
+  static final Set<double> supportedRoundingIncrements = {0.0, 0.5, 1.0};
 
   static void validateProfile(InsulinProfile profile) {
     if (profile.carbRatio <= 0) {
