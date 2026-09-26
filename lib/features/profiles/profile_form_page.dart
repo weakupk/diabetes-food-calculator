@@ -86,11 +86,23 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
       roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
       enabled: _enabled,
     );
-    await AppDatabase.instance.saveInsulinProfile(profile);
-    if (!mounted) {
-      return;
+    try {
+      await AppDatabase.instance.saveInsulinProfile(profile);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存方案失败，请重试。')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
-    Navigator.of(context).pop(true);
   }
 
   @override

@@ -66,11 +66,23 @@ class _FoodFormPageState extends State<FoodFormPage> {
       fatPer100: double.parse(_fatController.text.trim()),
       isCustom: true,
     );
-    await AppDatabase.instance.saveFood(food);
-    if (!mounted) {
-      return;
+    try {
+      await AppDatabase.instance.saveFood(food);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存食物失败，请重试。')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
-    Navigator.of(context).pop(true);
   }
 
   @override

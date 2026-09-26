@@ -183,19 +183,31 @@ class _MealEditorPageState extends State<MealEditorPage> {
     }
 
     setState(() => _saving = true);
-    await AppDatabase.instance.saveMeal(
-      mealId: widget.existingMeal?.id,
-      mealType: _mealType,
-      name: _mealType == MealType.custom
-          ? _customNameController.text.trim()
-          : _mealType.value,
-      eatenAt: _eatenAt,
-      items: _items,
-    );
-    if (!mounted) {
-      return;
+    try {
+      await AppDatabase.instance.saveMeal(
+        mealId: widget.existingMeal?.id,
+        mealType: _mealType,
+        name: _mealType == MealType.custom
+            ? _customNameController.text.trim()
+            : _mealType.value,
+        eatenAt: _eatenAt,
+        items: _items,
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存餐次失败，请重试。')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
-    Navigator.of(context).pop(true);
   }
 
   Future<void> _pickDateTime() async {
@@ -389,8 +401,8 @@ class _MealEditorPageState extends State<MealEditorPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   DropdownButtonFormField<String>(
-                    // ignore: deprecated_member_use
-                    value: selected.id,
+                    key: ValueKey(selected.id),
+                    initialValue: selected.id,
                     decoration: const InputDecoration(labelText: '用于核对的胰岛素方案'),
                     items: profiles
                         .map(
