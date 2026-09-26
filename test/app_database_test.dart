@@ -84,6 +84,86 @@ void main() {
     await database.close();
   });
 
+  test('reopened meal preserves item order after saving again', () async {
+    final database = AppDatabase(databasePath: inMemoryDatabasePath);
+    await database.ensureReady();
+
+    await database.saveMeal(
+      mealId: 'meal-2',
+      mealType: MealType.lunch,
+      name: '午餐',
+      eatenAt: DateTime(2026, 1, 2, 12, 0),
+      items: const [
+        MealItem(
+          id: 'item-rice',
+          mealId: 'meal-2',
+          foodId: 'rice',
+          foodNameSnapshot: '米饭',
+          weightG: 150,
+          carbsPer100: 25.9,
+          proteinPer100: 2.6,
+          fatPer100: 0.3,
+          carbsG: 38.85,
+          proteinG: 3.9,
+          fatG: 0.45,
+          sortOrder: 0,
+        ),
+        MealItem(
+          id: 'item-tomato',
+          mealId: 'meal-2',
+          foodId: 'tomato',
+          foodNameSnapshot: '西红柿',
+          weightG: 200,
+          carbsPer100: 3.9,
+          proteinPer100: 0.9,
+          fatPer100: 0.2,
+          carbsG: 7.8,
+          proteinG: 1.8,
+          fatG: 0.4,
+          sortOrder: 1,
+        ),
+        MealItem(
+          id: 'item-chicken',
+          mealId: 'meal-2',
+          foodId: 'chicken',
+          foodNameSnapshot: '鸡胸肉',
+          weightG: 120,
+          carbsPer100: 0,
+          proteinPer100: 24.6,
+          fatPer100: 1.9,
+          carbsG: 0,
+          proteinG: 29.52,
+          fatG: 2.28,
+          sortOrder: 2,
+        ),
+      ],
+    );
+
+    final reopenedMeal = (await database.listMealRecords()).firstWhere(
+      (meal) => meal.id == 'meal-2',
+    );
+
+    await database.saveMeal(
+      mealId: reopenedMeal.id,
+      mealType: reopenedMeal.mealType,
+      name: reopenedMeal.name,
+      eatenAt: reopenedMeal.eatenAt,
+      items: reopenedMeal.items,
+    );
+
+    final savedAgain = (await database.listMealRecords()).firstWhere(
+      (meal) => meal.id == 'meal-2',
+    );
+
+    expect(savedAgain.items.map((item) => item.foodNameSnapshot).toList(), [
+      '米饭',
+      '西红柿',
+      '鸡胸肉',
+    ]);
+
+    await database.close();
+  });
+
   test(
     'food search matches aliases even when whitespace is inserted',
     () async {

@@ -367,7 +367,8 @@ class _MealEditorPageState extends State<MealEditorPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   DropdownButtonFormField<String>(
-                    initialValue: selected.id,
+                    // ignore: deprecated_member_use
+                    value: selected.id,
                     decoration: const InputDecoration(labelText: '用于核对的胰岛素方案'),
                     items: profiles
                         .map(
