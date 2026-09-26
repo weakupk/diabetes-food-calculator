@@ -74,6 +74,29 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     setState(() => _saving = true);
     final proteinCoefficientText = _proteinCoefficientController.text.trim();
     final fatCoefficientText = _fatCoefficientController.text.trim();
+    final parsedProteinCoefficient = proteinCoefficientText.isEmpty
+        ? null
+        : double.tryParse(proteinCoefficientText);
+    final parsedFatCoefficient = fatCoefficientText.isEmpty
+        ? null
+        : double.tryParse(fatCoefficientText);
+    if (_proteinFatEnabled && proteinCoefficientText.isNotEmpty && parsedProteinCoefficient == null) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入有效的蛋白质相关系数数字。')));
+      return;
+    }
+    if (_proteinFatEnabled &&
+        _formulaType != ProteinFatFormulaType.totalGrams &&
+        fatCoefficientText.isNotEmpty &&
+        parsedFatCoefficient == null) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入有效的脂肪相关系数数字。')));
+      return;
+    }
     final profile = InsulinProfile(
       id: widget.profile?.id ?? AppDatabase.newId(),
       name: _nameController.text.trim(),
@@ -84,13 +107,13 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
          ? null
          : proteinCoefficientText.isEmpty
          ? null
-         : double.tryParse(proteinCoefficientText),
+         : parsedProteinCoefficient,
       fatCoefficient:
          !_proteinFatEnabled || _formulaType == ProteinFatFormulaType.totalGrams
          ? null
          : fatCoefficientText.isEmpty
          ? null
-         : double.tryParse(fatCoefficientText),
+         : parsedFatCoefficient,
       roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
       enabled: _enabled,
     );
