@@ -32,6 +32,8 @@ class NutritionCalculator {
 class InsulinCalculator {
   const InsulinCalculator._();
 
+  static const supportedRoundingIncrements = {0.0, 0.5, 1.0};
+
   static InsulinCalculationResult calculate({
     required Nutrients nutrients,
     required InsulinProfile profile,
@@ -43,11 +45,11 @@ class InsulinCalculator {
         '碳水系数必须大于 0',
       );
     }
-    if (profile.roundingIncrement < 0) {
+    if (!supportedRoundingIncrements.contains(profile.roundingIncrement)) {
       throw ArgumentError.value(
         profile.roundingIncrement,
         'roundingIncrement',
-        '舍入刻度不能为负数',
+        '舍入模式仅支持 0、0.5 或 1 U',
       );
     }
 
@@ -141,8 +143,8 @@ class InsulinCalculator {
   }
 
   static double roundToIncrement(double value, double increment) {
-    if (increment < 0) {
-      throw ArgumentError.value(increment, 'increment', '舍入刻度不能为负数');
+    if (!supportedRoundingIncrements.contains(increment)) {
+      throw ArgumentError.value(increment, 'increment', '舍入模式仅支持 0、0.5 或 1 U');
     }
     if (increment == 0) {
       return value;

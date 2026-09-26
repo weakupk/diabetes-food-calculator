@@ -195,6 +195,29 @@ void main() {
         ),
         throwsArgumentError,
       );
+
+      const invalidRounding = InsulinProfile(
+        id: '6',
+        name: 'invalid rounding',
+        carbRatio: 10,
+        proteinFatEnabled: false,
+        formulaType: ProteinFatFormulaType.directWeighted,
+        proteinCoefficient: null,
+        fatCoefficient: null,
+        roundingIncrement: -0.5,
+        enabled: true,
+      );
+      expect(
+        () => InsulinCalculator.calculate(
+          nutrients: nutrients,
+          profile: invalidRounding,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => InsulinCalculator.roundToIncrement(5.2, 0.3),
+        throwsArgumentError,
+      );
     });
   });
 }
