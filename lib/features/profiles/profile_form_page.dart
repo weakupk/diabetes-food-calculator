@@ -72,18 +72,25 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     }
 
     setState(() => _saving = true);
+    final proteinCoefficientText = _proteinCoefficientController.text.trim();
+    final fatCoefficientText = _fatCoefficientController.text.trim();
     final profile = InsulinProfile(
       id: widget.profile?.id ?? AppDatabase.newId(),
       name: _nameController.text.trim(),
       carbRatio: double.parse(_carbRatioController.text.trim()),
       proteinFatEnabled: _proteinFatEnabled,
       formulaType: _formulaType,
-      proteinCoefficient: _proteinCoefficientController.text.trim().isEmpty
+      proteinCoefficient: !_proteinFatEnabled
          ? null
-         : double.parse(_proteinCoefficientController.text.trim()),
-      fatCoefficient: _fatCoefficientController.text.trim().isEmpty
+         : proteinCoefficientText.isEmpty
          ? null
-         : double.parse(_fatCoefficientController.text.trim()),
+         : double.tryParse(proteinCoefficientText),
+      fatCoefficient:
+         !_proteinFatEnabled || _formulaType == ProteinFatFormulaType.totalGrams
+         ? null
+         : fatCoefficientText.isEmpty
+         ? null
+         : double.tryParse(fatCoefficientText),
       roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
       enabled: _enabled,
     );
