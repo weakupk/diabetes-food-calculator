@@ -256,6 +256,10 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     if (!_proteinFatEnabled) {
       return null;
     }
+    if (_formulaType != ProteinFatFormulaType.totalGrams &&
+        (value == null || value.trim().isEmpty)) {
+      return null;
+    }
     if (value == null || value.trim().isEmpty) {
       return '请输入系数';
     }
@@ -278,7 +282,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
       return null;
     }
     if (value == null || value.trim().isEmpty) {
-      return '请输入系数';
+      return null;
     }
     final number = double.tryParse(value.trim());
     if (number == null || number < 0) {
