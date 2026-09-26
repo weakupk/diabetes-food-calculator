@@ -74,6 +74,22 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     setState(() => _saving = true);
     final proteinCoefficientText = _proteinCoefficientController.text.trim();
     final fatCoefficientText = _fatCoefficientController.text.trim();
+    if (_proteinFatEnabled && proteinCoefficientText.isEmpty) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请填写蛋白质相关系数；未使用请填 0。')));
+      return;
+    }
+    if (_proteinFatEnabled &&
+        _formulaType != ProteinFatFormulaType.totalGrams &&
+        fatCoefficientText.isEmpty) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请填写脂肪相关系数；未使用请填 0。')));
+      return;
+    }
     final profile = InsulinProfile(
       id: widget.profile?.id ?? AppDatabase.newId(),
       name: _nameController.text.trim(),
