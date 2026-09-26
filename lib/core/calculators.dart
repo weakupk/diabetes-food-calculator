@@ -58,19 +58,35 @@ class InsulinCalculator {
         final proteinCoefficient = profile.proteinCoefficient ?? 0;
         final fatCoefficient = profile.fatCoefficient ?? 0;
         if (proteinCoefficient < 0 || fatCoefficient < 0) {
-          throw ArgumentError('直接加权系数不能为负数');
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'directWeightedCoefficients',
+            '直接加权系数不能为负数',
+          );
         }
         if (proteinCoefficient == 0 && fatCoefficient == 0) {
-          throw ArgumentError('至少需要一个蛋白质/脂肪系数');
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'directWeightedCoefficients',
+            '至少需要一个蛋白质/脂肪系数',
+          );
         }
       case ProteinFatFormulaType.equivalentCarbs:
         final proteinCoefficient = profile.proteinCoefficient ?? 0;
         final fatCoefficient = profile.fatCoefficient ?? 0;
         if (proteinCoefficient < 0 || fatCoefficient < 0) {
-          throw ArgumentError('等效碳水系数不能为负数');
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'equivalentCarbCoefficients',
+            '等效碳水系数不能为负数',
+          );
         }
         if (proteinCoefficient == 0 && fatCoefficient == 0) {
-          throw ArgumentError('至少需要一个蛋白质/脂肪换算系数');
+          throw ArgumentError.value(
+            'protein=$proteinCoefficient,fat=$fatCoefficient',
+            'equivalentCarbCoefficients',
+            '至少需要一个蛋白质/脂肪换算系数',
+          );
         }
       case ProteinFatFormulaType.totalGrams:
         final ratio = profile.proteinCoefficient ?? 0;
