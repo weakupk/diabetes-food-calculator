@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/calculators.dart';
 import '../../core/models.dart';
 import '../../data/app_database.dart';
 
@@ -246,7 +247,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     if (number == null) {
       return '请输入有效数字';
     }
-    if (number != 0 && number != 0.5 && number != 1) {
+    if (!InsulinCalculator.supportedRoundingIncrements.contains(number)) {
       return '仅支持 0、0.5 或 1';
     }
     return null;

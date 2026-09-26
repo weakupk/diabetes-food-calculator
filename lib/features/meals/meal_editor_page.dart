@@ -79,13 +79,11 @@ class _MealEditorPageState extends State<MealEditorPage> {
   }
 
   bool _isProfileValidForCalculation(InsulinProfile profile) {
-    final isSupportedRounding =
-        profile.roundingIncrement == 0 ||
-        profile.roundingIncrement == 0.5 ||
-        profile.roundingIncrement == 1;
     if (!profile.enabled ||
         profile.carbRatio <= 0 ||
-        !isSupportedRounding) {
+        !InsulinCalculator.supportedRoundingIncrements.contains(
+          profile.roundingIncrement,
+        )) {
       return false;
     }
     if (!profile.proteinFatEnabled) {
