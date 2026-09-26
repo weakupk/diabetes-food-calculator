@@ -71,6 +71,7 @@ class InsulinCalculator {
             '至少需要一个蛋白质/脂肪系数',
           );
         }
+        break;
       case ProteinFatFormulaType.equivalentCarbs:
         final proteinCoefficient = profile.proteinCoefficient ?? 0;
         final fatCoefficient = profile.fatCoefficient ?? 0;
@@ -88,6 +89,7 @@ class InsulinCalculator {
             '至少需要一个蛋白质/脂肪换算系数',
           );
         }
+        break;
       case ProteinFatFormulaType.totalGrams:
         final ratio = profile.proteinCoefficient ?? 0;
         if (ratio <= 0) {
@@ -97,6 +99,7 @@ class InsulinCalculator {
             '蛋白质脂肪系数必须大于 0',
           );
         }
+        break;
     }
   }
 
@@ -124,6 +127,7 @@ class InsulinCalculator {
             '蛋白质/脂肪部分 = ${_fmt(nutrients.protein)} × ${_fmt(proteinCoefficient)} + '
             '${_fmt(nutrients.fat)} × ${_fmt(fatCoefficient)} = ${_fmt(proteinFatUnits)} U',
           );
+          break;
         case ProteinFatFormulaType.equivalentCarbs:
           final proteinCoefficient = profile.proteinCoefficient ?? 0;
           final fatCoefficient = profile.fatCoefficient ?? 0;
@@ -138,6 +142,7 @@ class InsulinCalculator {
           explanation.add(
             '蛋白质/脂肪部分 = ${_fmt(equivalentCarbs)} ÷ ${_fmt(profile.carbRatio)} = ${_fmt(proteinFatUnits)} U',
           );
+          break;
         case ProteinFatFormulaType.totalGrams:
           final ratio = profile.proteinCoefficient ?? 0;
           final grams = nutrients.protein + nutrients.fat;
@@ -146,6 +151,7 @@ class InsulinCalculator {
             '蛋白质/脂肪部分 = (${_fmt(nutrients.protein)} + ${_fmt(nutrients.fat)}) ÷ ${_fmt(ratio)} '
             '= ${_fmt(proteinFatUnits)} U',
           );
+          break;
       }
     } else {
       explanation.add('蛋白质/脂肪部分已关闭');
