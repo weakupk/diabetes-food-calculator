@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:diabetes_food_calculator/core/calculators.dart';
 import 'package:diabetes_food_calculator/core/models.dart';
 import 'package:diabetes_food_calculator/data/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -175,6 +178,107 @@ void main() {
       expect(foods.any((food) => food.name == '米饭'), isTrue);
 
       await database.close();
+    },
+  );
+
+  test(
+    'database migration populates normalized aliases for legacy rows',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dfc-migration-test',
+      );
+      final dbPath = p.join(tempDir.path, 'legacy.db');
+
+      final legacyDb = await openDatabase(
+        dbPath,
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+          CREATE TABLE foods (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            aliases TEXT NOT NULL DEFAULT '',
+            category TEXT NOT NULL DEFAULT '',
+            carbs_g_per_100 REAL NOT NULL,
+            protein_g_per_100 REAL NOT NULL,
+            fat_g_per_100 REAL NOT NULL,
+            is_custom INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )
+        ''');
+          await db.execute('''
+          CREATE TABLE meals (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            meal_type TEXT NOT NULL,
+            eaten_at TEXT NOT NULL,
+            total_carbs_g REAL NOT NULL,
+            total_protein_g REAL NOT NULL,
+            total_fat_g REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )
+        ''');
+          await db.execute('''
+          CREATE TABLE meal_items (
+            id TEXT PRIMARY KEY,
+            meal_id TEXT NOT NULL,
+            food_id TEXT,
+            food_name_snapshot TEXT NOT NULL,
+            weight_g REAL NOT NULL,
+            carbs_g_per_100 REAL NOT NULL,
+            protein_g_per_100 REAL NOT NULL,
+            fat_g_per_100 REAL NOT NULL,
+            carbs_g REAL NOT NULL,
+            protein_g REAL NOT NULL,
+            fat_g REAL NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+          )
+        ''');
+          await db.execute('''
+          CREATE TABLE insulin_profiles (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            carb_ratio REAL NOT NULL,
+            protein_fat_enabled INTEGER NOT NULL DEFAULT 0,
+            formula_type TEXT NOT NULL,
+            protein_coefficient REAL,
+            fat_coefficient REAL,
+            rounding_increment REAL NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )
+        ''');
+          await db.insert('foods', {
+            'id': 'legacy-rice',
+            'name': '米饭',
+            'normalized_name': '米饭',
+            'aliases': '白米饭|熟米饭',
+            'category': '谷薯类',
+            'carbs_g_per_100': 25.9,
+            'protein_g_per_100': 2.6,
+            'fat_g_per_100': 0.3,
+            'is_custom': 0,
+            'created_at': '2026-01-01T00:00:00.000',
+            'updated_at': '2026-01-01T00:00:00.000',
+          });
+        },
+      );
+      await legacyDb.close();
+
+      final database = AppDatabase(databasePath: dbPath);
+      await database.ensureReady();
+
+      final foods = await database.searchFoods('白 米 饭');
+
+      expect(foods.any((food) => food.id == 'legacy-rice'), isTrue);
+
+      await database.close();
+      await tempDir.delete(recursive: true);
     },
   );
 }

@@ -40,6 +40,9 @@ class AppDatabase {
     return openDatabase(
       path,
       version: _databaseVersion,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (db, version) async {
         await _createSchema(db);
         await _seedSampleFoods(db);
@@ -381,10 +384,7 @@ class AppDatabase {
 
   Future<void> deleteMeal(String id) async {
     final db = await database;
-    await db.transaction((txn) async {
-      await txn.delete('meal_items', where: 'meal_id = ?', whereArgs: [id]);
-      await txn.delete('meals', where: 'id = ?', whereArgs: [id]);
-    });
+    await db.delete('meals', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<List<InsulinProfile>> listInsulinProfiles() async {

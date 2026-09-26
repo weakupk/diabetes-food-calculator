@@ -74,12 +74,14 @@ class _MealsPageState extends State<MealsPage> {
           }
           final meals = snapshot.data ?? const <MealRecord>[];
           final now = DateTime.now();
-          final todayMeals = meals.where(
-            (meal) =>
-                meal.eatenAt.year == now.year &&
-                meal.eatenAt.month == now.month &&
-                meal.eatenAt.day == now.day,
-          );
+          final todayMeals = meals
+              .where(
+                (meal) =>
+                    meal.eatenAt.year == now.year &&
+                    meal.eatenAt.month == now.month &&
+                    meal.eatenAt.day == now.day,
+              )
+              .toList(growable: false);
           final totalCarbs = todayMeals.fold<double>(
             0,
             (sum, meal) => sum + meal.totalCarbs,

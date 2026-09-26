@@ -400,20 +400,24 @@ class _MealEditorPageState extends State<MealEditorPage> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  DropdownButtonFormField<String>(
-                    key: ValueKey(selected.id),
-                    initialValue: selected.id,
+                  InputDecorator(
                     decoration: const InputDecoration(labelText: '用于核对的胰岛素方案'),
-                    items: profiles
-                        .map(
-                          (profile) => DropdownMenuItem(
-                            value: profile.id,
-                            child: Text(profile.name),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (value) =>
-                        setState(() => _selectedProfileId = value),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selected.id,
+                        isExpanded: true,
+                        items: profiles
+                            .map(
+                              (profile) => DropdownMenuItem(
+                                value: profile.id,
+                                child: Text(profile.name),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) =>
+                            setState(() => _selectedProfileId = value),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Card(
