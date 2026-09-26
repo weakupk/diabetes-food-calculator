@@ -57,6 +57,12 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (!_hasValidProteinFatConfiguration()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('直接加权或等效碳水公式至少需要一个大于 0 的相关系数。')),
+      );
+      return;
+    }
     if (!_confirmedByDoctor) {
       ScaffoldMessenger.of(
         context,
@@ -250,5 +256,19 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
       return '请输入大于等于 0 的数字';
     }
     return null;
+  }
+
+  bool _hasValidProteinFatConfiguration() {
+    if (!_proteinFatEnabled) {
+      return true;
+    }
+    if (_formulaType == ProteinFatFormulaType.totalGrams) {
+      return true;
+    }
+    final primary =
+        double.tryParse(_proteinCoefficientController.text.trim()) ?? 0;
+    final secondary =
+        double.tryParse(_fatCoefficientController.text.trim()) ?? 0;
+    return primary > 0 || secondary > 0;
   }
 }

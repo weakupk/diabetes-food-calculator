@@ -56,6 +56,20 @@ class _MealEditorPageState extends State<MealEditorPage> {
         .toList(growable: false);
   }
 
+  bool _isProfileValidForCalculation(InsulinProfile profile) {
+    if (!profile.enabled || !profile.proteinFatEnabled) {
+      return profile.enabled;
+    }
+    switch (profile.formulaType) {
+      case ProteinFatFormulaType.directWeighted:
+      case ProteinFatFormulaType.equivalentCarbs:
+        return (profile.proteinCoefficient ?? 0) > 0 ||
+            (profile.fatCoefficient ?? 0) > 0;
+      case ProteinFatFormulaType.totalGrams:
+        return (profile.proteinCoefficient ?? 0) > 0;
+    }
+  }
+
   Future<void> _addFood() async {
     final item = await Navigator.of(
       context,
@@ -349,13 +363,13 @@ class _MealEditorPageState extends State<MealEditorPage> {
                 );
               }
               final profiles = (snapshot.data ?? const <InsulinProfile>[])
-                  .where((profile) => profile.enabled)
+                  .where(_isProfileValidForCalculation)
                   .toList(growable: false);
               if (profiles.isEmpty) {
                 return const Card(
                   child: Padding(
                     padding: EdgeInsets.all(16),
-                    child: Text('暂无胰岛素方案。请先在“方案”页创建，并由医生或糖尿病教育师确认参数。'),
+                    child: Text('暂无可用的胰岛素方案。请先在“方案”页创建并确认有效参数，再返回此页面核对计算结果。'),
                   ),
                 );
               }
