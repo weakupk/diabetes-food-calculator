@@ -121,95 +121,100 @@ class _MealEditorPageState extends State<MealEditorPage> {
     final controller = TextEditingController(text: formatNumber(item.weightG));
     Nutrients preview = item.nutrients;
     String? errorText;
-    final updated = await showDialog<MealItem>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text('编辑 ${item.foodNameSnapshot}'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: controller,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+    final updated = await (() async {
+      try {
+        return await showDialog<MealItem>(
+          context: context,
+          builder: (context) {
+            return StatefulBuilder(
+              builder: (context, setState) {
+                return AlertDialog(
+                  title: Text('编辑 ${item.foodNameSnapshot}'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: controller,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(labelText: '重量（克）'),
+                        onChanged: (value) {
+                          final weight = double.tryParse(value.trim());
+                          if (weight == null || weight <= 0) {
+                            setState(() {
+                              errorText = '请输入大于 0 的重量';
+                            });
+                            return;
+                          }
+                          setState(() {
+                            errorText = null;
+                            preview = NutritionCalculator.calculate(
+                              weightG: weight,
+                              carbsPer100: item.carbsPer100,
+                              proteinPer100: item.proteinPer100,
+                              fatPer100: item.fatPer100,
+                            );
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      if (errorText != null) ...[
+                        Text(
+                          errorText!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      Text('碳水：${formatNumber(preview.carbs)} g'),
+                      Text('蛋白质：${formatNumber(preview.protein)} g'),
+                      Text('脂肪：${formatNumber(preview.fat)} g'),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('取消'),
                     ),
-                    decoration: const InputDecoration(labelText: '重量（克）'),
-                    onChanged: (value) {
-                      final weight = double.tryParse(value.trim());
-                      if (weight == null || weight <= 0) {
-                        setState(() {
-                          errorText = '请输入大于 0 的重量';
-                        });
-                        return;
-                      }
-                      setState(() {
-                        errorText = null;
-                        preview = NutritionCalculator.calculate(
+                    FilledButton(
+                      onPressed: () {
+                        final weight = double.tryParse(controller.text.trim());
+                        if (weight == null || weight <= 0) {
+                          setState(() {
+                            errorText = '请输入大于 0 的重量';
+                          });
+                          return;
+                        }
+                        final nutrients = NutritionCalculator.calculate(
                           weightG: weight,
                           carbsPer100: item.carbsPer100,
                           proteinPer100: item.proteinPer100,
                           fatPer100: item.fatPer100,
                         );
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  if (errorText != null) ...[
-                    Text(
-                      errorText!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                        Navigator.of(context).pop(
+                          item.copyWith(
+                            weightG: weight,
+                            carbsG: nutrients.carbs,
+                            proteinG: nutrients.protein,
+                            fatG: nutrients.fat,
+                          ),
+                        );
+                      },
+                      child: const Text('保存'),
                     ),
-                    const SizedBox(height: 8),
                   ],
-                  Text('碳水：${formatNumber(preview.carbs)} g'),
-                  Text('蛋白质：${formatNumber(preview.protein)} g'),
-                  Text('脂肪：${formatNumber(preview.fat)} g'),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('取消'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final weight = double.tryParse(controller.text.trim());
-                    if (weight == null || weight <= 0) {
-                      setState(() {
-                        errorText = '请输入大于 0 的重量';
-                      });
-                      return;
-                    }
-                    final nutrients = NutritionCalculator.calculate(
-                      weightG: weight,
-                      carbsPer100: item.carbsPer100,
-                      proteinPer100: item.proteinPer100,
-                      fatPer100: item.fatPer100,
-                    );
-                    Navigator.of(context).pop(
-                      item.copyWith(
-                        weightG: weight,
-                        carbsG: nutrients.carbs,
-                        proteinG: nutrients.protein,
-                        fatG: nutrients.fat,
-                      ),
-                    );
-                  },
-                  child: const Text('保存'),
-                ),
-              ],
+                );
+              },
             );
           },
         );
-      },
-    );
-    controller.dispose();
+      } finally {
+        controller.dispose();
+      }
+    })();
     if (updated == null) {
       return;
     }

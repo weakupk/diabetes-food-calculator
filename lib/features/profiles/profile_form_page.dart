@@ -257,11 +257,11 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     if (!_proteinFatEnabled) {
       return null;
     }
-    if (_formulaType != ProteinFatFormulaType.totalGrams &&
-        (value == null || value.trim().isEmpty)) {
-      return null;
-    }
     if (value == null || value.trim().isEmpty) {
+      if (_formulaType != ProteinFatFormulaType.totalGrams &&
+          (double.tryParse(_fatCoefficientController.text.trim()) ?? 0) > 0) {
+        return '如不使用蛋白质系数，请填写 0';
+      }
       return '请输入系数';
     }
     final number = double.tryParse(value.trim());
