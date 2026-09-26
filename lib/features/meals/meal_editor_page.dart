@@ -48,6 +48,14 @@ class _MealEditorPageState extends State<MealEditorPage> {
   Nutrients get _totals =>
       NutritionCalculator.sum(_items.map((item) => item.nutrients));
 
+  List<MealItem> _reindexItems(List<MealItem> items) {
+    return items
+        .asMap()
+        .entries
+        .map((entry) => entry.value.copyWith(sortOrder: entry.key))
+        .toList(growable: false);
+  }
+
   Future<void> _addFood() async {
     final item = await Navigator.of(
       context,
@@ -56,7 +64,7 @@ class _MealEditorPageState extends State<MealEditorPage> {
       return;
     }
     setState(() {
-      _items = [..._items, item.copyWith(sortOrder: _items.length)];
+      _items = _reindexItems([..._items, item]);
     });
   }
 
@@ -301,7 +309,10 @@ class _MealEditorPageState extends State<MealEditorPage> {
                       ),
                       IconButton(
                         tooltip: '移除',
-                        onPressed: () => setState(() => _items.removeAt(index)),
+                        onPressed: () => setState(() {
+                          final updatedItems = [..._items]..removeAt(index);
+                          _items = _reindexItems(updatedItems);
+                        }),
                         icon: const Icon(Icons.delete_outline),
                       ),
                     ],
@@ -329,7 +340,9 @@ class _MealEditorPageState extends State<MealEditorPage> {
           FutureBuilder<List<InsulinProfile>>(
             future: _profilesFuture,
             builder: (context, snapshot) {
-              final profiles = snapshot.data ?? const <InsulinProfile>[];
+              final profiles = (snapshot.data ?? const <InsulinProfile>[])
+                  .where((profile) => profile.enabled)
+                  .toList(growable: false);
               if (profiles.isEmpty) {
                 return const Card(
                   child: Padding(

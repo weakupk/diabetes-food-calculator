@@ -83,4 +83,18 @@ void main() {
 
     await database.close();
   });
+
+  test(
+    'food search matches aliases even when whitespace is inserted',
+    () async {
+      final database = AppDatabase(databasePath: inMemoryDatabasePath);
+      await database.ensureReady();
+
+      final foods = await database.searchFoods('白 米 饭');
+
+      expect(foods.any((food) => food.name == '米饭'), isTrue);
+
+      await database.close();
+    },
+  );
 }

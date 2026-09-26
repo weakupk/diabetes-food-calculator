@@ -12,7 +12,7 @@ class AppDatabase {
 
   static final AppDatabase instance = AppDatabase();
   static const _databaseName = 'diabetes_food_calculator.db';
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2;
 
   final String? databasePath;
   Database? _database;
@@ -45,9 +45,23 @@ class AppDatabase {
         await _seedSampleFoods(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 1) {
-          await _createSchema(db);
-          await _seedSampleFoods(db);
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE foods ADD COLUMN normalized_aliases TEXT NOT NULL DEFAULT \'\'',
+          );
+          final rows = await db.query('foods', columns: ['id', 'aliases']);
+          for (final row in rows) {
+            await db.update(
+              'foods',
+              {
+                'normalized_aliases': _normalizeAliases(
+                  row['aliases'] as String? ?? '',
+                ),
+              },
+              where: 'id = ?',
+              whereArgs: [row['id']],
+            );
+          }
         }
       },
     );
@@ -65,6 +79,7 @@ class AppDatabase {
         name TEXT NOT NULL,
         normalized_name TEXT NOT NULL,
         aliases TEXT NOT NULL DEFAULT '',
+        normalized_aliases TEXT NOT NULL DEFAULT '',
         category TEXT NOT NULL DEFAULT '',
         carbs_g_per_100 REAL NOT NULL,
         protein_g_per_100 REAL NOT NULL,
@@ -194,6 +209,7 @@ class AppDatabase {
       'name': name,
       'normalized_name': _normalizeText(name),
       'aliases': aliases.join('|'),
+      'normalized_aliases': aliases.map(_normalizeText).join('|'),
       'category': category,
       'carbs_g_per_100': carbsPer100,
       'protein_g_per_100': proteinPer100,
@@ -208,6 +224,8 @@ class AppDatabase {
     final db = await database;
     final wildcard = '%$query%';
     final normalized = '%${_normalizeText(query)}%';
+    final prefix = '$query%';
+    final normalizedPrefix = '${_normalizeText(query)}%';
     final rows = await db.rawQuery(
       '''
       SELECT *
@@ -216,18 +234,29 @@ class AppDatabase {
          OR name LIKE ?
          OR normalized_name LIKE ?
          OR aliases LIKE ?
+         OR normalized_aliases LIKE ?
       ORDER BY
         CASE
           WHEN name = ? THEN 0
           WHEN name LIKE ? THEN 1
-          WHEN aliases LIKE ? THEN 2
+          WHEN aliases LIKE ? OR normalized_aliases LIKE ? THEN 2
           ELSE 3
         END,
         is_custom DESC,
         name COLLATE NOCASE ASC
       LIMIT 100
       ''',
-      [query, wildcard, normalized, wildcard, query, '$query%', '$query%'],
+      [
+        query,
+        wildcard,
+        normalized,
+        wildcard,
+        normalized,
+        query,
+        prefix,
+        prefix,
+        normalizedPrefix,
+      ],
     );
     return rows.map(_foodFromMap).toList();
   }
@@ -245,6 +274,7 @@ class AppDatabase {
       'name': food.name,
       'normalized_name': _normalizeText(food.name),
       'aliases': food.aliases.join('|'),
+      'normalized_aliases': food.aliases.map(_normalizeText).join('|'),
       'category': food.category,
       'carbs_g_per_100': food.carbsPer100,
       'protein_g_per_100': food.proteinPer100,
@@ -272,15 +302,28 @@ class AppDatabase {
   Future<List<MealRecord>> listMealRecords() async {
     final db = await database;
     final mealRows = await db.query('meals', orderBy: 'eaten_at DESC');
+    if (mealRows.isEmpty) {
+      return const [];
+    }
+    final mealIds = mealRows.map((row) => row['id']! as String).toList();
+    final placeholders = List.filled(mealIds.length, '?').join(',');
+    final itemRows = await db.query(
+      'meal_items',
+      where: 'meal_id IN ($placeholders)',
+      whereArgs: mealIds,
+      orderBy: 'meal_id ASC, sort_order ASC, created_at ASC',
+    );
+    final itemsByMealId = <String, List<Map<String, Object?>>>{};
+    for (final row in itemRows) {
+      final mealId = row['meal_id']! as String;
+      itemsByMealId
+          .putIfAbsent(mealId, () => <Map<String, Object?>>[])
+          .add(row);
+    }
     final result = <MealRecord>[];
     for (final mealRow in mealRows) {
-      final itemRows = await db.query(
-        'meal_items',
-        where: 'meal_id = ?',
-        whereArgs: [mealRow['id']],
-        orderBy: 'sort_order ASC, created_at ASC',
-      );
-      result.add(_mealFromMaps(mealRow, itemRows));
+      final mealId = mealRow['id']! as String;
+      result.add(_mealFromMaps(mealRow, itemsByMealId[mealId] ?? const []));
     }
     return result;
   }
@@ -455,6 +498,14 @@ class AppDatabase {
 
   static String _normalizeText(String input) {
     return input.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+  }
+
+  static String _normalizeAliases(String aliases) {
+    return aliases
+        .split('|')
+        .map(_normalizeText)
+        .where((alias) => alias.isNotEmpty)
+        .join('|');
   }
 
   static String newId() {
