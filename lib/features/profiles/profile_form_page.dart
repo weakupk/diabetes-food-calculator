@@ -72,23 +72,18 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     }
 
     setState(() => _saving = true);
-    final proteinCoefficientText = _proteinCoefficientController.text.trim();
-    final fatCoefficientText = _fatCoefficientController.text.trim();
-    final usesDualCoefficients =
-       _proteinFatEnabled &&
-       _formulaType != ProteinFatFormulaType.totalGrams;
     final profile = InsulinProfile(
       id: widget.profile?.id ?? AppDatabase.newId(),
       name: _nameController.text.trim(),
       carbRatio: double.parse(_carbRatioController.text.trim()),
       proteinFatEnabled: _proteinFatEnabled,
       formulaType: _formulaType,
-      proteinCoefficient: proteinCoefficientText.isEmpty
-         ? (usesDualCoefficients ? 0 : null)
-         : double.parse(proteinCoefficientText),
-      fatCoefficient: fatCoefficientText.isEmpty
-         ? (usesDualCoefficients ? 0 : null)
-         : double.parse(fatCoefficientText),
+      proteinCoefficient: _proteinCoefficientController.text.trim().isEmpty
+         ? null
+         : double.parse(_proteinCoefficientController.text.trim()),
+      fatCoefficient: _fatCoefficientController.text.trim().isEmpty
+         ? null
+         : double.parse(_fatCoefficientController.text.trim()),
       roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
       enabled: _enabled,
     );
@@ -197,6 +192,9 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
                   labelText: _formulaType == ProteinFatFormulaType.totalGrams
                       ? '蛋白质脂肪系数'
                       : '蛋白质相关系数',
+                  helperText: _formulaType == ProteinFatFormulaType.totalGrams
+                      ? null
+                      : '未使用该项时请填写 0。',
                 ),
                 validator: _validateFormulaPrimary,
               ),
@@ -211,6 +209,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
                         _formulaType == ProteinFatFormulaType.equivalentCarbs
                         ? '脂肪换算系数'
                         : '脂肪相关系数',
+                    helperText: '未使用该项时请填写 0。',
                   ),
                   validator: _validateFormulaSecondary,
                 ),
@@ -262,10 +261,6 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     if (!_proteinFatEnabled) {
       return null;
     }
-    if (_formulaType != ProteinFatFormulaType.totalGrams &&
-        (value == null || value.trim().isEmpty)) {
-      return null;
-    }
     if (value == null || value.trim().isEmpty) {
       return '请输入系数';
     }
@@ -288,7 +283,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
       return null;
     }
     if (value == null || value.trim().isEmpty) {
-      return null;
+      return '请输入系数';
     }
     final number = double.tryParse(value.trim());
     if (number == null || number < 0) {
