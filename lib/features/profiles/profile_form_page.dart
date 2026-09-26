@@ -72,18 +72,23 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     }
 
     setState(() => _saving = true);
+    final proteinCoefficientText = _proteinCoefficientController.text.trim();
+    final fatCoefficientText = _fatCoefficientController.text.trim();
+    final usesDualCoefficients =
+       _proteinFatEnabled &&
+       _formulaType != ProteinFatFormulaType.totalGrams;
     final profile = InsulinProfile(
       id: widget.profile?.id ?? AppDatabase.newId(),
       name: _nameController.text.trim(),
       carbRatio: double.parse(_carbRatioController.text.trim()),
       proteinFatEnabled: _proteinFatEnabled,
       formulaType: _formulaType,
-      proteinCoefficient: _proteinCoefficientController.text.trim().isEmpty
-          ? null
-          : double.parse(_proteinCoefficientController.text.trim()),
-      fatCoefficient: _fatCoefficientController.text.trim().isEmpty
-          ? null
-          : double.parse(_fatCoefficientController.text.trim()),
+      proteinCoefficient: proteinCoefficientText.isEmpty
+         ? (usesDualCoefficients ? 0 : null)
+         : double.parse(proteinCoefficientText),
+      fatCoefficient: fatCoefficientText.isEmpty
+         ? (usesDualCoefficients ? 0 : null)
+         : double.parse(fatCoefficientText),
       roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
       enabled: _enabled,
     );
@@ -257,11 +262,11 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     if (!_proteinFatEnabled) {
       return null;
     }
+    if (_formulaType != ProteinFatFormulaType.totalGrams &&
+        (value == null || value.trim().isEmpty)) {
+      return null;
+    }
     if (value == null || value.trim().isEmpty) {
-      if (_formulaType != ProteinFatFormulaType.totalGrams &&
-          (double.tryParse(_fatCoefficientController.text.trim()) ?? 0) > 0) {
-        return '如不使用蛋白质系数，请填写 0';
-      }
       return '请输入系数';
     }
     final number = double.tryParse(value.trim());
