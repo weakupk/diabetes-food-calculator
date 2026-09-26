@@ -79,26 +79,17 @@ class _MealEditorPageState extends State<MealEditorPage> {
   }
 
   bool _isProfileValidForCalculation(InsulinProfile profile) {
-    if (!profile.enabled ||
-        profile.carbRatio <= 0 ||
-        !InsulinCalculator.supportedRoundingIncrements.contains(
-          profile.roundingIncrement,
-        )) {
+    if (!profile.enabled) {
       return false;
     }
-    if (!profile.proteinFatEnabled) {
+    try {
+      InsulinCalculator.calculate(
+        nutrients: Nutrients.zero,
+        profile: profile,
+      );
       return true;
-    }
-    switch (profile.formulaType) {
-      case ProteinFatFormulaType.directWeighted:
-      case ProteinFatFormulaType.equivalentCarbs:
-        final proteinCoefficient = profile.proteinCoefficient ?? 0;
-        final fatCoefficient = profile.fatCoefficient ?? 0;
-        return proteinCoefficient >= 0 &&
-            fatCoefficient >= 0 &&
-            (proteinCoefficient > 0 || fatCoefficient > 0);
-      case ProteinFatFormulaType.totalGrams:
-        return (profile.proteinCoefficient ?? 0) > 0;
+    } on ArgumentError {
+      return false;
     }
   }
 

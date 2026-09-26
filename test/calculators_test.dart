@@ -126,7 +126,9 @@ void main() {
     });
 
     test('rounding increment should round to nearest step', () {
+      expect(InsulinCalculator.roundToIncrement(6, 0), 6);
       expect(InsulinCalculator.roundToIncrement(5.26, 0), 5.26);
+      expect(InsulinCalculator.roundToIncrement(-1.25, 0), -1.25);
       expect(InsulinCalculator.roundToIncrement(5.24, 0.5), 5.0);
       expect(InsulinCalculator.roundToIncrement(5.26, 0.5), 5.5);
       expect(InsulinCalculator.roundToIncrement(5.6, 1), 6.0);
