@@ -83,10 +83,7 @@ class _MealEditorPageState extends State<MealEditorPage> {
       return false;
     }
     try {
-      InsulinCalculator.calculate(
-        nutrients: Nutrients.zero,
-        profile: profile,
-      );
+      InsulinCalculator.validateProfile(profile);
       return true;
     } on ArgumentError {
       return false;
