@@ -56,15 +56,27 @@ class _MealEditorPageState extends State<MealEditorPage> {
         .toList(growable: false);
   }
 
+  String _roundingLabel(double value) {
+    return value == 0 ? '不舍入' : '${formatNumber(value)} U';
+  }
+
   bool _isProfileValidForCalculation(InsulinProfile profile) {
-    if (!profile.enabled || !profile.proteinFatEnabled) {
-      return profile.enabled;
+    if (!profile.enabled ||
+        profile.carbRatio <= 0 ||
+        profile.roundingIncrement < 0) {
+      return false;
+    }
+    if (!profile.proteinFatEnabled) {
+      return true;
     }
     switch (profile.formulaType) {
       case ProteinFatFormulaType.directWeighted:
       case ProteinFatFormulaType.equivalentCarbs:
-        return (profile.proteinCoefficient ?? 0) > 0 ||
-            (profile.fatCoefficient ?? 0) > 0;
+        final proteinCoefficient = profile.proteinCoefficient ?? 0;
+        final fatCoefficient = profile.fatCoefficient ?? 0;
+        return proteinCoefficient >= 0 &&
+            fatCoefficient >= 0 &&
+            (proteinCoefficient > 0 || fatCoefficient > 0);
       case ProteinFatFormulaType.totalGrams:
         return (profile.proteinCoefficient ?? 0) > 0;
     }
@@ -73,7 +85,9 @@ class _MealEditorPageState extends State<MealEditorPage> {
   Future<void> _addFood() async {
     final item = await Navigator.of(
       context,
-    ).push<MealItem>(MaterialPageRoute(builder: (_) => const FoodPickerPage()));
+    ).push<MealItem>(
+      MaterialPageRoute(builder: (_) => const FoodPickerPage()),
+    );
     if (item == null) {
       return;
     }
@@ -86,6 +100,7 @@ class _MealEditorPageState extends State<MealEditorPage> {
     final item = _items[index];
     final controller = TextEditingController(text: formatNumber(item.weightG));
     Nutrients preview = item.nutrients;
+    String? errorText;
     final updated = await showDialog<MealItem>(
       context: context,
       builder: (context) {
@@ -106,9 +121,13 @@ class _MealEditorPageState extends State<MealEditorPage> {
                     onChanged: (value) {
                       final weight = double.tryParse(value.trim());
                       if (weight == null || weight <= 0) {
+                        setState(() {
+                          errorText = '请输入大于 0 的重量';
+                        });
                         return;
                       }
                       setState(() {
+                        errorText = null;
                         preview = NutritionCalculator.calculate(
                           weightG: weight,
                           carbsPer100: item.carbsPer100,
@@ -119,6 +138,15 @@ class _MealEditorPageState extends State<MealEditorPage> {
                     },
                   ),
                   const SizedBox(height: 12),
+                  if (errorText != null) ...[
+                    Text(
+                      errorText!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   Text('碳水：${formatNumber(preview.carbs)} g'),
                   Text('蛋白质：${formatNumber(preview.protein)} g'),
                   Text('脂肪：${formatNumber(preview.fat)} g'),
@@ -133,6 +161,9 @@ class _MealEditorPageState extends State<MealEditorPage> {
                   onPressed: () {
                     final weight = double.tryParse(controller.text.trim());
                     if (weight == null || weight <= 0) {
+                      setState(() {
+                        errorText = '请输入大于 0 的重量';
+                      });
                       return;
                     }
                     final nutrients = NutritionCalculator.calculate(
@@ -260,7 +291,7 @@ class _MealEditorPageState extends State<MealEditorPage> {
             child: const Padding(
               padding: EdgeInsets.all(12),
               child: Text(
-                '本应用仅用于营养记录和按公式核对计算，不是医疗设备或自动给药工具；所有参数和实际剂量必须由医生或糖尿病教育师确认。',
+                '仅用于记录和公式计算，不构成医疗建议；参数和实际剂量需由医生或糖尿病教育师确认。',
               ),
             ),
           ),
@@ -381,7 +412,9 @@ class _MealEditorPageState extends State<MealEditorPage> {
                 return const Card(
                   child: Padding(
                     padding: EdgeInsets.all(16),
-                    child: Text('暂无可用的胰岛素方案。请先在“方案”页创建并确认有效参数，再返回此页面核对计算结果。'),
+                    child: Text(
+                      '暂无可用的胰岛素方案。请先在“方案”页创建并确认有效参数（碳水系数需大于 0，舍入模式支持不舍入/0.5U/1U），再返回此页面核对计算结果。',
+                    ),
                   ),
                 );
               }
@@ -393,10 +426,16 @@ class _MealEditorPageState extends State<MealEditorPage> {
                       (profile) => profile.id == _selectedProfileId,
                     )
                   : profiles.first;
-              final calculation = InsulinCalculator.calculate(
-                nutrients: totals,
-                profile: selected,
-              );
+              InsulinCalculationResult? calculation;
+              String? calculationError;
+              try {
+                calculation = InsulinCalculator.calculate(
+                  nutrients: totals,
+                  profile: selected,
+                );
+              } on ArgumentError catch (error) {
+                calculationError = error.message?.toString() ?? '当前方案参数无效';
+              }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -424,25 +463,43 @@ class _MealEditorPageState extends State<MealEditorPage> {
                     child: ExpansionTile(
                       initiallyExpanded: true,
                       title: const Text('胰岛素拆分结果'),
-                      subtitle: Text(
-                        '碳水 ${formatNumber(calculation.carbUnits)} U · '
-                        '蛋白质/脂肪 ${formatNumber(calculation.proteinFatUnits)} U · '
-                        '合计 ${formatNumber(calculation.roundedTotalUnits)} U',
-                      ),
+                      subtitle: calculation == null
+                          ? Text('当前方案无法计算：$calculationError')
+                          : Text(
+                              '碳水 ${formatNumber(calculation.carbUnits)} U · '
+                              '蛋白质/脂肪 ${formatNumber(calculation.proteinFatUnits)} U · '
+                              '合计 ${formatNumber(calculation.roundedTotalUnits)} U',
+                            ),
                       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       children: [
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: calculation.explanation
-                                .map(
+                            children: [
+                              Text('方案名称：${selected.name}'),
+                              Text(
+                                '当前公式模式：${selected.proteinFatEnabled ? selected.formulaType.value : '仅碳水'}',
+                              ),
+                              Text(
+                                '舍入模式：${_roundingLabel(selected.roundingIncrement)}',
+                              ),
+                              const SizedBox(height: 8),
+                              if (calculationError != null)
+                                Text(
+                                  calculationError,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                )
+                              else
+                                ...calculation!.explanation.map(
                                   (item) => Padding(
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: Text(item),
                                   ),
-                                )
-                                .toList(growable: false),
+                                ),
+                            ],
                           ),
                         ),
                       ],

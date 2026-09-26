@@ -37,13 +37,17 @@ class InsulinCalculator {
     required InsulinProfile profile,
   }) {
     if (profile.carbRatio <= 0) {
-      throw ArgumentError.value(profile.carbRatio, 'carbRatio', '碳水系数必须大于 0');
+      throw ArgumentError.value(
+        profile.carbRatio,
+        'carbRatio',
+        '碳水系数必须大于 0',
+      );
     }
-    if (profile.roundingIncrement <= 0) {
+    if (profile.roundingIncrement < 0) {
       throw ArgumentError.value(
         profile.roundingIncrement,
         'roundingIncrement',
-        '舍入刻度必须大于 0',
+        '舍入刻度不能为负数',
       );
     }
 
@@ -119,9 +123,13 @@ class InsulinCalculator {
     explanation.add(
       '合计 = ${_fmt(carbUnits)} + ${_fmt(proteinFatUnits)} = ${_fmt(totalUnits)} U',
     );
-    explanation.add(
-      '按 ${_fmt(profile.roundingIncrement)} U 舍入后 = ${_fmt(roundedTotalUnits)} U',
-    );
+    if (profile.roundingIncrement == 0) {
+      explanation.add('舍入模式：不舍入，结果保持 ${_fmt(roundedTotalUnits)} U');
+    } else {
+      explanation.add(
+        '按 ${_fmt(profile.roundingIncrement)} U 舍入后 = ${_fmt(roundedTotalUnits)} U',
+      );
+    }
 
     return InsulinCalculationResult(
       carbUnits: carbUnits,
@@ -133,8 +141,11 @@ class InsulinCalculator {
   }
 
   static double roundToIncrement(double value, double increment) {
-    if (increment <= 0) {
-      throw ArgumentError.value(increment, 'increment', '舍入刻度必须大于 0');
+    if (increment < 0) {
+      throw ArgumentError.value(increment, 'increment', '舍入刻度不能为负数');
+    }
+    if (increment == 0) {
+      return value;
     }
     return (value / increment).round() * increment;
   }

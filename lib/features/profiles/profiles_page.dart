@@ -74,7 +74,7 @@ class _ProfilesPageState extends State<ProfilesPage> {
             child: const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                '重要说明：这是营养记录和公式计算工具，不是医疗设备或自动给药工具。所有参数和实际剂量必须由医生或糖尿病教育师确认。',
+                '仅用于记录和公式计算，不构成医疗建议；参数和实际剂量需由医生或糖尿病教育师确认。',
               ),
             ),
           ),
@@ -108,7 +108,7 @@ class _ProfilesPageState extends State<ProfilesPage> {
                               ),
                               Text('蛋白质/脂肪：${profile.formulaSummary}'),
                               Text(
-                                '舍入刻度：${formatNumber(profile.roundingIncrement)} U',
+                                '舍入模式：${profile.roundingIncrement == 0 ? '不舍入' : '${formatNumber(profile.roundingIncrement)} U'}',
                               ),
                               Text(profile.enabled ? '状态：启用' : '状态：停用'),
                             ],

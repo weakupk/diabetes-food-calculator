@@ -47,6 +47,7 @@ class _FoodPickerPageState extends State<FoodPickerPage> {
       proteinPer100: food.proteinPer100,
       fatPer100: food.fatPer100,
     );
+    String? errorText;
 
     final selectedItem = await showDialog<MealItem>(
       context: context,
@@ -57,6 +58,7 @@ class _FoodPickerPageState extends State<FoodPickerPage> {
               final weight = double.tryParse(value.trim());
               setState(() {
                 if (weight != null && weight > 0) {
+                  errorText = null;
                   preview = NutritionCalculator.calculate(
                     weightG: weight,
                     carbsPer100: food.carbsPer100,
@@ -64,6 +66,7 @@ class _FoodPickerPageState extends State<FoodPickerPage> {
                     fatPer100: food.fatPer100,
                   );
                 } else {
+                  errorText = '请输入大于 0 的重量';
                   preview = null;
                 }
               });
@@ -84,6 +87,15 @@ class _FoodPickerPageState extends State<FoodPickerPage> {
                     onChanged: updatePreview,
                   ),
                   const SizedBox(height: 12),
+                  if (errorText != null) ...[
+                    Text(
+                      errorText!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   Text(
                     '碳水：${preview == null ? '-' : '${formatNumber(preview!.carbs)} g'}',
                   ),
@@ -104,6 +116,9 @@ class _FoodPickerPageState extends State<FoodPickerPage> {
                   onPressed: () {
                     final weight = double.tryParse(controller.text.trim());
                     if (weight == null || weight <= 0) {
+                      setState(() {
+                        errorText = '请输入大于 0 的重量';
+                      });
                       return;
                     }
                     final nutrients = NutritionCalculator.calculate(
@@ -155,11 +170,19 @@ class _FoodPickerPageState extends State<FoodPickerPage> {
               controller: _searchController,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.search),
-                hintText: '搜索食物名称或别名',
+                hintText: '搜索中文食物名称或别名',
                 border: OutlineInputBorder(),
               ),
             ),
           ),
+          if (_searchController.text.trim().isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('未输入搜索词时，可直接从下方常用/示例食物中选择。'),
+              ),
+            ),
           Expanded(
             child: FutureBuilder<List<Food>>(
               future: _foodsFuture,
@@ -169,7 +192,13 @@ class _FoodPickerPageState extends State<FoodPickerPage> {
                 }
                 final foods = snapshot.data ?? const <Food>[];
                 if (foods.isEmpty) {
-                  return const Center(child: Text('没有搜索结果'));
+                  return Center(
+                    child: Text(
+                      _searchController.text.trim().isEmpty
+                          ? '暂无常用食物，请先到“食物库”新增。'
+                          : '没有搜索结果，请尝试中文名称或别名。',
+                    ),
+                  );
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

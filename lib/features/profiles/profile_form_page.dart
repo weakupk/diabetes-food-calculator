@@ -121,7 +121,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
               child: const Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
-                  '重要说明：这是营养记录和公式计算工具，不是医疗设备或自动给药工具。所有参数和实际剂量必须由医生或糖尿病教育师确认。',
+                  '仅用于记录和公式计算，不构成医疗建议；参数和实际剂量需由医生或糖尿病教育师确认。',
                 ),
               ),
             ),
@@ -143,15 +143,18 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
                 decimal: true,
               ),
               decoration: const InputDecoration(labelText: '碳水系数（多少克碳水对应 1U）'),
-              validator: _validatePositive,
+              validator: _validateCarbRatio,
             ),
             TextFormField(
               controller: _roundingIncrementController,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: '舍入刻度（U）'),
-              validator: _validatePositive,
+              decoration: const InputDecoration(
+                labelText: '舍入模式（仅支持 0、0.5、1 U）',
+                helperText: '填 0 表示不舍入，填 0.5 或 1 表示按对应刻度舍入。',
+              ),
+              validator: _validateRoundingIncrement,
             ),
             SwitchListTile(
               value: _proteinFatEnabled,
@@ -224,13 +227,27 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     );
   }
 
-  String? _validatePositive(String? value) {
+  String? _validateCarbRatio(String? value) {
     if (value == null || value.trim().isEmpty) {
       return '请输入数值';
     }
     final number = double.tryParse(value.trim());
     if (number == null || number <= 0) {
       return '请输入大于 0 的数字';
+    }
+    return null;
+  }
+
+  String? _validateRoundingIncrement(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return '请输入数值';
+    }
+    final number = double.tryParse(value.trim());
+    if (number == null) {
+      return '请输入有效数字';
+    }
+    if (number != 0 && number != 0.5 && number != 1) {
+      return '仅支持 0、0.5 或 1';
     }
     return null;
   }
