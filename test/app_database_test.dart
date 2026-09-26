@@ -312,4 +312,27 @@ void main() {
     await reopenedDatabase.close();
     await tempDir.delete(recursive: true);
   });
+
+  test('concurrent ensureReady does not duplicate sample foods', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dfc-concurrent-seed-test',
+    );
+    final dbPath = p.join(tempDir.path, 'seed.db');
+    final database = AppDatabase(databasePath: dbPath);
+
+    await Future.wait([database.ensureReady(), database.ensureReady()]);
+    final foods = await database.searchFoods('');
+
+    expect(foods.length, 5);
+    expect(foods.map((food) => food.name).toSet(), {
+      '米饭',
+      '西红柿',
+      '苹果',
+      '鸡胸肉',
+      '鸡蛋',
+    });
+
+    await database.close();
+    await tempDir.delete(recursive: true);
+  });
 }
