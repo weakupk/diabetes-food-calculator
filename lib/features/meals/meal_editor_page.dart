@@ -81,16 +81,16 @@ class _MealEditorPageState extends State<MealEditorPage> {
 
   String? _fieldLabel(String? name) {
     switch (name) {
-      case 'carbRatio':
-        return '碳水系数';
+      case 'cirFormula':
+        return 'CIR 公式';
+      case 'carbInsulinFormula':
+        return '碳水胰岛素公式';
+      case 'proteinFatFormula':
+        return '蛋白质/脂肪公式';
+      case 'isfFormula':
+        return 'ISF 公式';
       case 'roundingIncrement':
         return '舍入模式';
-      case 'proteinFatRatio':
-        return '蛋白质脂肪系数';
-      case 'directWeightedCoefficients':
-        return '直接加权系数';
-      case 'equivalentCarbCoefficients':
-        return '等效碳水系数';
       default:
         return null;
     }
@@ -444,7 +444,7 @@ class _MealEditorPageState extends State<MealEditorPage> {
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: Text(
-                      '暂无可用的胰岛素方案。请先在“方案”页创建并确认有效参数（碳水系数需大于 0，舍入模式支持不舍入/0.5U/1U），再返回此页面核对计算结果。',
+                    '暂无可用的胰岛素方案。请先在“方案”页创建并确认有效公式与参数（例如 CIR、碳水公式、ISF，舍入模式支持不舍入/0.5U/1U），再返回此页面核对计算结果。',
                     ),
                   ),
                 );
@@ -509,9 +509,14 @@ class _MealEditorPageState extends State<MealEditorPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('方案名称：${selected.name}'),
+                              Text('CIR 公式：${selected.cirFormula}'),
                               Text(
                                 '当前公式模式：${selected.proteinFatEnabled ? selected.formulaType.value : '仅碳水'}',
                               ),
+                              Text('碳水公式：${selected.carbInsulinFormula}'),
+                              if (selected.proteinFatEnabled)
+                                Text('蛋白质/脂肪公式：${selected.proteinFatFormula}'),
+                              Text('ISF 公式：${selected.isfFormula}'),
                               Text(
                                 '舍入模式：${_roundingLabel(selected.roundingIncrement)}',
                               ),

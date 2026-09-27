@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 enum MealType { breakfast, lunch, dinner, snack, custom }
 
-enum ProteinFatFormulaType { directWeighted, equivalentCarbs, totalGrams }
+enum ProteinFatFormulaType { massBased, fpu, custom }
 
 MealType mealTypeFromValue(String value) {
   return MealType.values.firstWhere(
@@ -12,10 +12,20 @@ MealType mealTypeFromValue(String value) {
 }
 
 ProteinFatFormulaType proteinFatFormulaTypeFromValue(String value) {
-  return ProteinFatFormulaType.values.firstWhere(
-    (type) => type.value == value,
-    orElse: () => ProteinFatFormulaType.directWeighted,
-  );
+  switch (value) {
+    case '质量法':
+      return ProteinFatFormulaType.massBased;
+    case 'FPU法':
+      return ProteinFatFormulaType.fpu;
+    case '自定义':
+      return ProteinFatFormulaType.custom;
+    case '直接加权':
+    case '等效碳水':
+    case '合计克数':
+      return ProteinFatFormulaType.custom;
+    default:
+      return ProteinFatFormulaType.massBased;
+  }
 }
 
 extension MealTypeLabel on MealType {
@@ -38,23 +48,23 @@ extension MealTypeLabel on MealType {
 extension ProteinFatFormulaTypeLabel on ProteinFatFormulaType {
   String get value {
     switch (this) {
-      case ProteinFatFormulaType.directWeighted:
-        return '直接加权';
-      case ProteinFatFormulaType.equivalentCarbs:
-        return '等效碳水';
-      case ProteinFatFormulaType.totalGrams:
-        return '合计克数';
+      case ProteinFatFormulaType.massBased:
+        return '质量法';
+      case ProteinFatFormulaType.fpu:
+        return 'FPU法';
+      case ProteinFatFormulaType.custom:
+        return '自定义';
     }
   }
 
   String get description {
     switch (this) {
-      case ProteinFatFormulaType.directWeighted:
-        return '蛋白质克数×蛋白质系数 + 脂肪克数×脂肪系数';
-      case ProteinFatFormulaType.equivalentCarbs:
-        return '（蛋白质克数×蛋白质换算系数 + 脂肪克数×脂肪换算系数）÷ 碳水系数';
-      case ProteinFatFormulaType.totalGrams:
-        return '（蛋白质克数 + 脂肪克数）÷ 蛋白质脂肪系数';
+      case ProteinFatFormulaType.massBased:
+        return '（蛋白质总克重 + 脂肪总克重）÷ 2 ÷ 基准';
+      case ProteinFatFormulaType.fpu:
+        return '（蛋白质总克重×4 + 脂肪总克重×9）÷ 100';
+      case ProteinFatFormulaType.custom:
+        return '使用你自定义的蛋白质/脂肪公式';
     }
   }
 }
@@ -203,21 +213,56 @@ class InsulinProfile {
     required this.id,
     required this.name,
     required this.carbRatio,
+    required this.totalDailyInsulin,
+    required this.carbRule,
+    required this.proteinFatBase,
+    required this.correctionStandard,
     required this.proteinFatEnabled,
     required this.formulaType,
     required this.proteinCoefficient,
     required this.fatCoefficient,
+    required this.cirFormula,
+    required this.carbInsulinFormula,
+    required this.proteinFatFormula,
+    required this.isfFormula,
     required this.roundingIncrement,
     required this.enabled,
   });
 
+  static const defaultCirFormula = 'total_daily_insulin / carb_rule';
+  static const defaultCarbInsulinFormula = 'carbs / cir';
+  static const defaultProteinFatMassFormula =
+      '(protein + fat) / 2 / protein_fat_base';
+  static const defaultProteinFatFpuFormula = '((protein * 4) + (fat * 9)) / 100';
+  static const defaultIsfFormula =
+      'correction_standard / total_daily_insulin / 18';
+
+  static String defaultProteinFatFormulaForType(ProteinFatFormulaType type) {
+    switch (type) {
+      case ProteinFatFormulaType.massBased:
+        return defaultProteinFatMassFormula;
+      case ProteinFatFormulaType.fpu:
+        return defaultProteinFatFpuFormula;
+      case ProteinFatFormulaType.custom:
+        return defaultProteinFatMassFormula;
+    }
+  }
+
   final String id;
   final String name;
   final double carbRatio;
+  final double? totalDailyInsulin;
+  final double? carbRule;
+  final double? proteinFatBase;
+  final double? correctionStandard;
   final bool proteinFatEnabled;
   final ProteinFatFormulaType formulaType;
   final double? proteinCoefficient;
   final double? fatCoefficient;
+  final String cirFormula;
+  final String carbInsulinFormula;
+  final String proteinFatFormula;
+  final String isfFormula;
   final double roundingIncrement;
   final bool enabled;
 
@@ -225,7 +270,10 @@ class InsulinProfile {
     if (!proteinFatEnabled) {
       return '仅计算碳水胰岛素';
     }
-    return formulaType.description;
+    final label = formulaType == ProteinFatFormulaType.custom
+        ? '自定义公式'
+        : formulaType.value;
+    return '$label：$proteinFatFormula';
   }
 }
 

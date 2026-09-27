@@ -12,7 +12,7 @@ class AppDatabase {
 
   static final AppDatabase instance = AppDatabase();
   static const _databaseName = 'diabetes_food_calculator.db';
-  static const _databaseVersion = 2;
+  static const _databaseVersion = 3;
 
   final String? databasePath;
   Database? _database;
@@ -60,6 +60,61 @@ class AppDatabase {
                 'normalized_aliases': _normalizeAliases(
                   row['aliases'] as String? ?? '',
                 ),
+              },
+              where: 'id = ?',
+              whereArgs: [row['id']],
+            );
+          }
+        }
+        if (oldVersion < 3) {
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN total_daily_insulin REAL',
+          );
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN carb_rule REAL',
+          );
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN protein_fat_base REAL',
+          );
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN correction_standard REAL',
+          );
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN cir_formula TEXT NOT NULL DEFAULT \'${InsulinProfile.defaultCirFormula}\'',
+          );
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN carb_insulin_formula TEXT NOT NULL DEFAULT \'${InsulinProfile.defaultCarbInsulinFormula}\'',
+          );
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN protein_fat_formula TEXT NOT NULL DEFAULT \'${InsulinProfile.defaultProteinFatMassFormula}\'',
+          );
+          await db.execute(
+            'ALTER TABLE insulin_profiles ADD COLUMN isf_formula TEXT NOT NULL DEFAULT \'${InsulinProfile.defaultIsfFormula}\'',
+          );
+
+          final profileRows = await db.query('insulin_profiles');
+          for (final row in profileRows) {
+            final carbRatio = (row['carb_ratio']! as num).toDouble();
+            final formulaType = row['formula_type']! as String;
+            final proteinCoefficient =
+                (row['protein_coefficient'] as num?)?.toDouble();
+
+            await db.update(
+              'insulin_profiles',
+              {
+                'total_daily_insulin': null,
+                'carb_rule': null,
+                'protein_fat_base':
+                    formulaType == '合计克数' && proteinCoefficient != null
+                    ? proteinCoefficient
+                    : null,
+                'correction_standard': null,
+                'cir_formula': 'carb_ratio',
+                'carb_insulin_formula': InsulinProfile.defaultCarbInsulinFormula,
+                'protein_fat_formula': _migratedProteinFatFormula(
+                  formulaType: formulaType,
+                ),
+                'isf_formula': '1',
               },
               where: 'id = ?',
               whereArgs: [row['id']],
@@ -135,6 +190,14 @@ class AppDatabase {
         formula_type TEXT NOT NULL,
         protein_coefficient REAL,
         fat_coefficient REAL,
+        total_daily_insulin REAL,
+        carb_rule REAL,
+        protein_fat_base REAL,
+        correction_standard REAL,
+        cir_formula TEXT NOT NULL,
+        carb_insulin_formula TEXT NOT NULL,
+        protein_fat_formula TEXT NOT NULL,
+        isf_formula TEXT NOT NULL,
         rounding_increment REAL NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
@@ -153,42 +216,6 @@ class AppDatabase {
         carbsPer100: 25.9,
         proteinPer100: 2.6,
         fatPer100: 0.3,
-        now: now,
-      ),
-      _sampleFood(
-        name: '鸡胸肉',
-        aliases: ['鸡脯肉'],
-        category: '肉蛋类',
-        carbsPer100: 0,
-        proteinPer100: 24.6,
-        fatPer100: 1.9,
-        now: now,
-      ),
-      _sampleFood(
-        name: '西红柿',
-        aliases: ['番茄'],
-        category: '蔬菜类',
-        carbsPer100: 3.9,
-        proteinPer100: 0.9,
-        fatPer100: 0.2,
-        now: now,
-      ),
-      _sampleFood(
-        name: '鸡蛋',
-        aliases: ['全蛋'],
-        category: '肉蛋类',
-        carbsPer100: 1.1,
-        proteinPer100: 13.3,
-        fatPer100: 8.8,
-        now: now,
-      ),
-      _sampleFood(
-        name: '苹果',
-        aliases: ['红富士'],
-        category: '水果类',
-        carbsPer100: 13.7,
-        proteinPer100: 0.3,
-        fatPer100: 0.2,
         now: now,
       ),
     ];
@@ -409,6 +436,14 @@ class AppDatabase {
       'formula_type': profile.formulaType.value,
       'protein_coefficient': profile.proteinCoefficient,
       'fat_coefficient': profile.fatCoefficient,
+      'total_daily_insulin': profile.totalDailyInsulin,
+      'carb_rule': profile.carbRule,
+      'protein_fat_base': profile.proteinFatBase,
+      'correction_standard': profile.correctionStandard,
+      'cir_formula': profile.cirFormula,
+      'carb_insulin_formula': profile.carbInsulinFormula,
+      'protein_fat_formula': profile.proteinFatFormula,
+      'isf_formula': profile.isfFormula,
       'rounding_increment': profile.roundingIncrement,
       'enabled': profile.enabled ? 1 : 0,
       'created_at': existing.isEmpty ? now : existing.first['created_at'],
@@ -474,12 +509,26 @@ class AppDatabase {
       id: row['id']! as String,
       name: row['name']! as String,
       carbRatio: (row['carb_ratio']! as num).toDouble(),
+      totalDailyInsulin: (row['total_daily_insulin'] as num?)?.toDouble(),
+      carbRule: (row['carb_rule'] as num?)?.toDouble(),
+      proteinFatBase: (row['protein_fat_base'] as num?)?.toDouble(),
+      correctionStandard: (row['correction_standard'] as num?)?.toDouble(),
       proteinFatEnabled: (row['protein_fat_enabled']! as int) == 1,
       formulaType: proteinFatFormulaTypeFromValue(
         row['formula_type']! as String,
       ),
       proteinCoefficient: (row['protein_coefficient'] as num?)?.toDouble(),
       fatCoefficient: (row['fat_coefficient'] as num?)?.toDouble(),
+      cirFormula:
+          (row['cir_formula'] as String?) ?? InsulinProfile.defaultCirFormula,
+      carbInsulinFormula:
+          (row['carb_insulin_formula'] as String?) ??
+          InsulinProfile.defaultCarbInsulinFormula,
+      proteinFatFormula:
+          (row['protein_fat_formula'] as String?) ??
+          InsulinProfile.defaultProteinFatMassFormula,
+      isfFormula:
+          (row['isf_formula'] as String?) ?? InsulinProfile.defaultIsfFormula,
       roundingIncrement: (row['rounding_increment']! as num).toDouble(),
       enabled: (row['enabled']! as int) == 1,
     );
@@ -506,6 +555,21 @@ class AppDatabase {
         .map(_normalizeText)
         .where((alias) => alias.isNotEmpty)
         .join('|');
+  }
+
+  static String _migratedProteinFatFormula({
+    required String formulaType,
+  }) {
+    switch (formulaType) {
+      case '直接加权':
+        return 'protein * protein_coefficient + fat * fat_coefficient';
+      case '等效碳水':
+        return '((protein * protein_coefficient) + (fat * fat_coefficient)) / carb_ratio';
+      case '合计克数':
+        return '(protein + fat) / protein_coefficient';
+      default:
+        return InsulinProfile.defaultProteinFatMassFormula;
+    }
   }
 
   static String newId() {

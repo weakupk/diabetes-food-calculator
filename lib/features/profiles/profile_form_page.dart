@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/calculators.dart';
+import '../../core/formula_engine.dart';
 import '../../core/models.dart';
 import '../../data/app_database.dart';
 
@@ -16,14 +17,22 @@ class ProfileFormPage extends StatefulWidget {
 class _ProfileFormPageState extends State<ProfileFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _carbRatioController = TextEditingController();
+  final _totalDailyInsulinController = TextEditingController();
+  final _carbRuleController = TextEditingController();
+  final _proteinFatBaseController = TextEditingController();
   final _proteinCoefficientController = TextEditingController();
   final _fatCoefficientController = TextEditingController();
+  final _correctionStandardController = TextEditingController();
+  final _cirFormulaController = TextEditingController();
+  final _carbInsulinFormulaController = TextEditingController();
+  final _proteinFatFormulaController = TextEditingController();
+  final _isfFormulaController = TextEditingController();
   final _roundingIncrementController = TextEditingController();
   bool _enabled = true;
-  bool _proteinFatEnabled = false;
+  bool _proteinFatEnabled = true;
   bool _confirmedByDoctor = false;
-  ProteinFatFormulaType _formulaType = ProteinFatFormulaType.directWeighted;
+  ProteinFatFormulaType _formulaType = ProteinFatFormulaType.massBased;
+  String _customProteinFatFormula = InsulinProfile.defaultProteinFatMassFormula;
   bool _saving = false;
 
   @override
@@ -32,36 +41,56 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     final profile = widget.profile;
     if (profile != null) {
       _nameController.text = profile.name;
-      _carbRatioController.text = profile.carbRatio.toString();
+      _totalDailyInsulinController.text =
+          profile.totalDailyInsulin?.toString() ?? '';
+      _carbRuleController.text = profile.carbRule?.toString() ?? '';
+      _proteinFatBaseController.text = profile.proteinFatBase?.toString() ?? '';
       _proteinCoefficientController.text =
           profile.proteinCoefficient?.toString() ?? '';
       _fatCoefficientController.text = profile.fatCoefficient?.toString() ?? '';
+      _correctionStandardController.text =
+          profile.correctionStandard?.toString() ?? '';
+      _cirFormulaController.text = profile.cirFormula;
+      _carbInsulinFormulaController.text = profile.carbInsulinFormula;
+      _proteinFatFormulaController.text = profile.proteinFatFormula;
+      _customProteinFatFormula = profile.proteinFatFormula;
+      _isfFormulaController.text = profile.isfFormula;
       _roundingIncrementController.text = profile.roundingIncrement.toString();
       _enabled = profile.enabled;
       _proteinFatEnabled = profile.proteinFatEnabled;
       _formulaType = profile.formulaType;
       _confirmedByDoctor = true;
+    } else {
+      _cirFormulaController.text = InsulinProfile.defaultCirFormula;
+      _carbInsulinFormulaController.text =
+          InsulinProfile.defaultCarbInsulinFormula;
+      _proteinFatFormulaController.text =
+          InsulinProfile.defaultProteinFatMassFormula;
+      _customProteinFatFormula = _proteinFatFormulaController.text;
+      _isfFormulaController.text = InsulinProfile.defaultIsfFormula;
+      _roundingIncrementController.text = '0';
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _carbRatioController.dispose();
+    _totalDailyInsulinController.dispose();
+    _carbRuleController.dispose();
+    _proteinFatBaseController.dispose();
     _proteinCoefficientController.dispose();
     _fatCoefficientController.dispose();
+    _correctionStandardController.dispose();
+    _cirFormulaController.dispose();
+    _carbInsulinFormulaController.dispose();
+    _proteinFatFormulaController.dispose();
+    _isfFormulaController.dispose();
     _roundingIncrementController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    if (!_hasValidProteinFatConfiguration()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('直接加权或等效碳水公式至少需要一个大于 0 的相关系数。')),
-      );
       return;
     }
     if (!_confirmedByDoctor) {
@@ -72,30 +101,27 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     }
 
     setState(() => _saving = true);
-    final proteinCoefficientText = _proteinCoefficientController.text.trim();
-    final fatCoefficientText = _fatCoefficientController.text.trim();
-    final profile = InsulinProfile(
-      id: widget.profile?.id ?? AppDatabase.newId(),
-      name: _nameController.text.trim(),
-      carbRatio: double.parse(_carbRatioController.text.trim()),
-      proteinFatEnabled: _proteinFatEnabled,
-      formulaType: _formulaType,
-      proteinCoefficient: !_proteinFatEnabled
-         ? null
-         : double.parse(proteinCoefficientText),
-      fatCoefficient:
-         !_proteinFatEnabled || _formulaType == ProteinFatFormulaType.totalGrams
-         ? null
-         : double.parse(fatCoefficientText),
-      roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
-      enabled: _enabled,
-    );
     try {
+      final profile = _buildProfile();
+      InsulinCalculator.validateProfile(profile);
       await AppDatabase.instance.saveInsulinProfile(profile);
       if (!mounted) {
         return;
       }
       Navigator.of(context).pop(true);
+    } on FormulaEvaluationException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } on ArgumentError catch (error) {
+      if (mounted) {
+        final message = error.message?.toString() ?? '保存方案失败，请检查输入';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -107,6 +133,56 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
         setState(() => _saving = false);
       }
     }
+  }
+
+  InsulinProfile _buildProfile() {
+    final totalDailyInsulin = double.parse(
+      _totalDailyInsulinController.text.trim(),
+    );
+    final carbRule = double.parse(_carbRuleController.text.trim());
+    final proteinFatBase = _parseOptional(_proteinFatBaseController.text);
+    final correctionStandard = double.parse(
+      _correctionStandardController.text.trim(),
+    );
+    final cir = FormulaEvaluator.evaluate(_cirFormulaController.text.trim(), {
+      'total_daily_insulin': totalDailyInsulin,
+      'carb_rule': carbRule,
+      'protein_fat_base': proteinFatBase ?? 1,
+      'correction_standard': correctionStandard,
+      'carbs': 1,
+      'protein': 1,
+      'fat': 1,
+      'cir': 1,
+      'carb_ratio': 1,
+    });
+
+    return InsulinProfile(
+      id: widget.profile?.id ?? AppDatabase.newId(),
+      name: _nameController.text.trim(),
+      carbRatio: cir,
+      totalDailyInsulin: totalDailyInsulin,
+      carbRule: carbRule,
+      proteinFatBase: proteinFatBase,
+      correctionStandard: correctionStandard,
+      proteinFatEnabled: _proteinFatEnabled,
+      formulaType: _formulaType,
+      proteinCoefficient: _parseOptional(_proteinCoefficientController.text),
+      fatCoefficient: _parseOptional(_fatCoefficientController.text),
+      cirFormula: _cirFormulaController.text.trim(),
+      carbInsulinFormula: _carbInsulinFormulaController.text.trim(),
+      proteinFatFormula: _proteinFatFormulaController.text.trim(),
+      isfFormula: _isfFormulaController.text.trim(),
+      roundingIncrement: double.parse(_roundingIncrementController.text.trim()),
+      enabled: _enabled,
+    );
+  }
+
+  double? _parseOptional(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return double.parse(trimmed);
   }
 
   @override
@@ -142,23 +218,66 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
               title: const Text('启用此方案'),
             ),
             TextFormField(
-              controller: _carbRatioController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+              controller: _totalDailyInsulinController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: '全天胰岛素量'),
+              validator: (value) => _validatePositiveNumber(value, label: '全天胰岛素量'),
+            ),
+            TextFormField(
+              controller: _carbRuleController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: '基准法则',
+                helperText: '例如 500 法则中的 500。',
               ),
-              decoration: const InputDecoration(labelText: '碳水系数（多少克碳水对应 1U）'),
-              validator: _validateCarbRatio,
+              validator: (value) => _validatePositiveNumber(value, label: '基准法则'),
+            ),
+            TextFormField(
+              controller: _correctionStandardController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: '纠正标准',
+                helperText: '用于 ISF = 纠正标准 / 全天胰岛素量 / 18',
+              ),
+              validator: (value) => _validatePositiveNumber(value, label: '纠正标准'),
             ),
             TextFormField(
               controller: _roundingIncrementController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: '舍入模式（仅支持 0、0.5、1 U）',
                 helperText: '填 0 表示不舍入，填 0.5 或 1 表示按对应刻度舍入。',
               ),
               validator: _validateRoundingIncrement,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '可用变量：carbs、protein、fat、cir、total_daily_insulin、carb_rule、protein_fat_base、correction_standard；兼容旧公式时还可使用 protein_coefficient、fat_coefficient',
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _cirFormulaController,
+              decoration: const InputDecoration(
+                labelText: 'CIR 公式',
+                helperText: '默认：total_daily_insulin / carb_rule',
+              ),
+              validator: (value) => _validateFormula(
+                value,
+                label: 'CIR 公式',
+                includeProteinFatBase: true,
+              ),
+            ),
+            TextFormField(
+              controller: _carbInsulinFormulaController,
+              decoration: const InputDecoration(
+                labelText: '碳水胰岛素公式',
+                helperText: '默认：carbs / cir',
+              ),
+              validator: (value) => _validateFormula(
+                value,
+                label: '碳水胰岛素公式',
+                includeProteinFatBase: true,
+              ),
             ),
             SwitchListTile(
               value: _proteinFatEnabled,
@@ -168,7 +287,7 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
             if (_proteinFatEnabled) ...[
               DropdownButtonFormField<ProteinFatFormulaType>(
                 initialValue: _formulaType,
-                decoration: const InputDecoration(labelText: '蛋白质/脂肪公式类型'),
+                decoration: const InputDecoration(labelText: '蛋白质/脂肪公式模式'),
                 items: ProteinFatFormulaType.values
                     .map(
                       (type) => DropdownMenuItem(
@@ -178,45 +297,109 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
                     )
                     .toList(growable: false),
                 onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _formulaType = value);
+                  if (value == null) {
+                    return;
                   }
+                  setState(() {
+                    if (_formulaType == ProteinFatFormulaType.custom) {
+                      _customProteinFatFormula = _proteinFatFormulaController.text;
+                    }
+                    _formulaType = value;
+                    if (value == ProteinFatFormulaType.massBased) {
+                      _proteinFatFormulaController.text =
+                          InsulinProfile.defaultProteinFatMassFormula;
+                    } else if (value == ProteinFatFormulaType.fpu) {
+                      _proteinFatFormulaController.text =
+                          InsulinProfile.defaultProteinFatFpuFormula;
+                    } else {
+                      _proteinFatFormulaController.text =
+                          _customProteinFatFormula.trim().isEmpty
+                          ? InsulinProfile.defaultProteinFatMassFormula
+                          : _customProteinFatFormula;
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 8),
               Text(_formulaType.description),
               const SizedBox(height: 8),
               TextFormField(
-                controller: _proteinCoefficientController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                controller: _proteinFatBaseController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: '蛋白质/脂肪基准',
+                  helperText: '质量法默认会使用 protein_fat_base，自定义公式也可使用。',
                 ),
-                decoration: InputDecoration(
-                  labelText: _formulaType == ProteinFatFormulaType.totalGrams
-                      ? '蛋白质脂肪系数'
-                      : '蛋白质相关系数',
-                  helperText: _formulaType == ProteinFatFormulaType.totalGrams
-                      ? null
-                      : '未使用该项时请填写 0。',
-                ),
-                validator: _validateFormulaPrimary,
+                validator: _validateProteinFatBase,
               ),
-              if (_formulaType != ProteinFatFormulaType.totalGrams)
+              TextFormField(
+                controller: _proteinFatFormulaController,
+                decoration: InputDecoration(
+                  labelText: _formulaType == ProteinFatFormulaType.fpu
+                      ? '蛋白质/脂肪公式（FPU法）'
+                      : '蛋白质/脂肪公式',
+                  helperText: _formulaType == ProteinFatFormulaType.fpu
+                      ? '默认：((protein * 4) + (fat * 9)) / 100'
+                      : '默认：(protein + fat) / 2 / protein_fat_base',
+                ),
+                validator: (value) => _validateFormula(
+                  value,
+                  label: '蛋白质/脂肪公式',
+                  includeProteinFatBase: true,
+                ),
+              ),
+              if (_formulaType == ProteinFatFormulaType.custom) ...[
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _proteinCoefficientController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'protein_coefficient（自定义可选）',
+                    helperText: '仅当自定义公式引用 protein_coefficient 时需要填写。',
+                  ),
+                  validator: (value) => _validateOptionalCoefficient(
+                    value,
+                    variableName: 'protein_coefficient',
+                    label: 'protein_coefficient',
+                  ),
+                ),
                 TextFormField(
                   controller: _fatCoefficientController,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: InputDecoration(
-                    labelText:
-                        _formulaType == ProteinFatFormulaType.equivalentCarbs
-                        ? '脂肪换算系数'
-                        : '脂肪相关系数',
-                    helperText: '未使用该项时请填写 0。',
+                  decoration: const InputDecoration(
+                    labelText: 'fat_coefficient（自定义可选）',
+                    helperText: '仅当自定义公式引用 fat_coefficient 时需要填写。',
                   ),
-                  validator: _validateFormulaSecondary,
+                  validator: (value) => _validateOptionalCoefficient(
+                    value,
+                    variableName: 'fat_coefficient',
+                    label: 'fat_coefficient',
+                  ),
+                ),
+              ],
+              if (_formulaType == ProteinFatFormulaType.fpu)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text('100千卡=1U=1FPU'),
                 ),
             ],
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _isfFormulaController,
+              decoration: const InputDecoration(
+                labelText: 'ISF 公式',
+                helperText: '默认：correction_standard / total_daily_insulin / 18',
+              ),
+              validator: (value) => _validateFormula(
+                value,
+                label: 'ISF 公式',
+                includeProteinFatBase: true,
+              ),
+            ),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               value: _confirmedByDoctor,
@@ -235,13 +418,13 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     );
   }
 
-  String? _validateCarbRatio(String? value) {
+  String? _validatePositiveNumber(String? value, {required String label}) {
     if (value == null || value.trim().isEmpty) {
-      return '请输入数值';
+      return '请输入$label';
     }
     final number = double.tryParse(value.trim());
     if (number == null || number <= 0) {
-      return '请输入大于 0 的数字';
+      return '$label必须大于 0';
     }
     return null;
   }
@@ -260,52 +443,99 @@ class _ProfileFormPageState extends State<ProfileFormPage> {
     return null;
   }
 
-  String? _validateFormulaPrimary(String? value) {
+  String? _validateProteinFatBase(String? value) {
     if (!_proteinFatEnabled) {
       return null;
     }
+    var usesProteinFatBase = false;
+    if (_proteinFatFormulaController.text.trim().isNotEmpty) {
+      try {
+        usesProteinFatBase = FormulaEvaluator.variableNames(
+          _proteinFatFormulaController.text,
+        ).contains('protein_fat_base');
+      } on FormulaEvaluationException {
+        usesProteinFatBase = true;
+      }
+    }
+    if (!usesProteinFatBase) {
+      return null;
+    }
+    return _validatePositiveNumber(value, label: '蛋白质/脂肪基准');
+  }
+
+  String? _validateFormula(
+    String? value, {
+    required String label,
+    required bool includeProteinFatBase,
+  }) {
     if (value == null || value.trim().isEmpty) {
-      return '请输入系数';
+      return '请输入$label';
+    }
+    try {
+      final variables = <String, double>{
+        'carbs': 1,
+        'protein': 1,
+        'fat': 1,
+        'cir': 1,
+        'carb_ratio': 1,
+        if (widget.profile?.proteinCoefficient != null)
+          'protein_coefficient': widget.profile!.proteinCoefficient!,
+        if (widget.profile?.fatCoefficient != null)
+          'fat_coefficient': widget.profile!.fatCoefficient!,
+        'total_daily_insulin':
+            double.tryParse(_totalDailyInsulinController.text.trim()) ?? 1,
+        'carb_rule': double.tryParse(_carbRuleController.text.trim()) ?? 1,
+        'correction_standard':
+            double.tryParse(_correctionStandardController.text.trim()) ?? 1,
+      };
+      if (includeProteinFatBase) {
+        variables['protein_fat_base'] =
+            double.tryParse(_proteinFatBaseController.text.trim()) ?? 1;
+      }
+      final proteinCoefficient =
+          double.tryParse(_proteinCoefficientController.text.trim());
+      if (proteinCoefficient != null) {
+        variables['protein_coefficient'] = proteinCoefficient;
+      }
+      final fatCoefficient = double.tryParse(_fatCoefficientController.text.trim());
+      if (fatCoefficient != null) {
+        variables['fat_coefficient'] = fatCoefficient;
+      }
+      FormulaEvaluator.evaluate(value.trim(), variables);
+      return null;
+    } on FormulaEvaluationException catch (error) {
+      return error.message;
+    }
+  }
+
+  String? _validateOptionalCoefficient(
+    String? value, {
+    required String variableName,
+    required String label,
+  }) {
+    if (!_proteinFatEnabled || _formulaType != ProteinFatFormulaType.custom) {
+      return null;
+    }
+    var usesVariable = false;
+    if (_proteinFatFormulaController.text.trim().isNotEmpty) {
+      try {
+        usesVariable = FormulaEvaluator.variableNames(
+          _proteinFatFormulaController.text,
+        ).contains(variableName);
+      } on FormulaEvaluationException {
+        usesVariable = true;
+      }
+    }
+    if (!usesVariable) {
+      return null;
+    }
+    if (value == null || value.trim().isEmpty) {
+      return '请输入$label';
     }
     final number = double.tryParse(value.trim());
     if (number == null) {
       return '请输入有效数字';
     }
-    if (_formulaType == ProteinFatFormulaType.totalGrams && number <= 0) {
-      return '请输入大于 0 的数字';
-    }
-    if (_formulaType != ProteinFatFormulaType.totalGrams && number < 0) {
-      return '不能为负数';
-    }
     return null;
-  }
-
-  String? _validateFormulaSecondary(String? value) {
-    if (!_proteinFatEnabled ||
-        _formulaType == ProteinFatFormulaType.totalGrams) {
-      return null;
-    }
-    if (value == null || value.trim().isEmpty) {
-      return '请输入系数';
-    }
-    final number = double.tryParse(value.trim());
-    if (number == null || number < 0) {
-      return '请输入大于等于 0 的数字';
-    }
-    return null;
-  }
-
-  bool _hasValidProteinFatConfiguration() {
-    if (!_proteinFatEnabled) {
-      return true;
-    }
-    if (_formulaType == ProteinFatFormulaType.totalGrams) {
-      return true;
-    }
-    final primary =
-        double.tryParse(_proteinCoefficientController.text.trim()) ?? 0;
-    final secondary =
-        double.tryParse(_fatCoefficientController.text.trim()) ?? 0;
-    return primary > 0 || secondary > 0;
   }
 }

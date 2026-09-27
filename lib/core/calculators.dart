@@ -1,3 +1,5 @@
+import 'formula_engine.dart';
+import 'formatters.dart';
 import 'models.dart';
 
 class NutritionCalculator {
@@ -35,13 +37,6 @@ class InsulinCalculator {
   static final Set<double> supportedRoundingIncrements = {0.0, 0.5, 1.0};
 
   static void validateProfile(InsulinProfile profile) {
-    if (profile.carbRatio <= 0) {
-      throw ArgumentError.value(
-        profile.carbRatio,
-        'carbRatio',
-        '碳水系数必须大于 0',
-      );
-    }
     if (!supportedRoundingIncrements.contains(profile.roundingIncrement)) {
       throw ArgumentError.value(
         profile.roundingIncrement,
@@ -49,57 +44,44 @@ class InsulinCalculator {
         '舍入模式仅支持 0、0.5 或 1 U',
       );
     }
-    if (!profile.proteinFatEnabled) {
-      return;
+    final baseVariables = _baseVariables(profile)
+      ..addAll({'carbs': 1, 'protein': 1, 'fat': 1});
+    final cir = _evaluateFormula(
+      formula: profile.cirFormula,
+      variables: baseVariables,
+      fieldName: 'cirFormula',
+      label: 'CIR 公式',
+    );
+    if (cir <= 0) {
+      throw ArgumentError.value(cir, 'cirFormula', 'CIR 计算结果必须大于 0');
+    }
+    baseVariables['cir'] = cir;
+    baseVariables['carb_ratio'] = cir;
+
+    _evaluateFormula(
+      formula: profile.carbInsulinFormula,
+      variables: baseVariables,
+      fieldName: 'carbInsulinFormula',
+      label: '碳水胰岛素公式',
+    );
+
+    if (profile.proteinFatEnabled) {
+      _evaluateFormula(
+        formula: profile.proteinFatFormula,
+        variables: baseVariables,
+        fieldName: 'proteinFatFormula',
+        label: '蛋白质/脂肪公式',
+      );
     }
 
-    switch (profile.formulaType) {
-      case ProteinFatFormulaType.directWeighted:
-        final proteinCoefficient = profile.proteinCoefficient ?? 0;
-        final fatCoefficient = profile.fatCoefficient ?? 0;
-        if (proteinCoefficient < 0 || fatCoefficient < 0) {
-          throw ArgumentError.value(
-            'protein=$proteinCoefficient,fat=$fatCoefficient',
-            'directWeightedCoefficients',
-            '直接加权系数不能为负数',
-          );
-        }
-        if (proteinCoefficient == 0 && fatCoefficient == 0) {
-          throw ArgumentError.value(
-            'protein=$proteinCoefficient,fat=$fatCoefficient',
-            'directWeightedCoefficients',
-            '至少需要一个蛋白质/脂肪系数',
-          );
-        }
-        break;
-      case ProteinFatFormulaType.equivalentCarbs:
-        final proteinCoefficient = profile.proteinCoefficient ?? 0;
-        final fatCoefficient = profile.fatCoefficient ?? 0;
-        if (proteinCoefficient < 0 || fatCoefficient < 0) {
-          throw ArgumentError.value(
-            'protein=$proteinCoefficient,fat=$fatCoefficient',
-            'equivalentCarbCoefficients',
-            '等效碳水系数不能为负数',
-          );
-        }
-        if (proteinCoefficient == 0 && fatCoefficient == 0) {
-          throw ArgumentError.value(
-            'protein=$proteinCoefficient,fat=$fatCoefficient',
-            'equivalentCarbCoefficients',
-            '至少需要一个蛋白质/脂肪换算系数',
-          );
-        }
-        break;
-      case ProteinFatFormulaType.totalGrams:
-        final ratio = profile.proteinCoefficient ?? 0;
-        if (ratio <= 0) {
-          throw ArgumentError.value(
-            ratio,
-            'proteinFatRatio',
-            '蛋白质脂肪系数必须大于 0',
-          );
-        }
-        break;
+    final isf = _evaluateFormula(
+      formula: profile.isfFormula,
+      variables: baseVariables,
+      fieldName: 'isfFormula',
+      label: 'ISF 公式',
+    );
+    if (isf <= 0) {
+      throw ArgumentError.value(isf, 'isfFormula', 'ISF 计算结果必须大于 0');
     }
   }
 
@@ -109,53 +91,58 @@ class InsulinCalculator {
   }) {
     validateProfile(profile);
 
-    final carbUnits = nutrients.carbs / profile.carbRatio;
+    final variables = _baseVariables(profile)
+      ..addAll({
+        'carbs': nutrients.carbs,
+        'protein': nutrients.protein,
+        'fat': nutrients.fat,
+      });
+    final cir = _evaluateFormula(
+      formula: profile.cirFormula,
+      variables: variables,
+      fieldName: 'cirFormula',
+      label: 'CIR 公式',
+    );
+    variables['cir'] = cir;
+    variables['carb_ratio'] = cir;
+    final carbUnits = _evaluateFormula(
+      formula: profile.carbInsulinFormula,
+      variables: variables,
+      fieldName: 'carbInsulinFormula',
+      label: '碳水胰岛素公式',
+    );
     double proteinFatUnits = 0;
     final explanation = <String>[
-      '碳水部分 = ${_fmt(nutrients.carbs)} ÷ ${_fmt(profile.carbRatio)} = ${_fmt(carbUnits)} U',
+      'CIR = ${FormulaEvaluator.explain(profile.cirFormula, variables, formatter: _fmt)} = ${_fmt(cir)} g/U',
+      '碳水部分 = ${FormulaEvaluator.explain(profile.carbInsulinFormula, variables, formatter: _fmt)} = ${_fmt(carbUnits)} U',
     ];
 
     if (profile.proteinFatEnabled) {
-      switch (profile.formulaType) {
-        case ProteinFatFormulaType.directWeighted:
-          final proteinCoefficient = profile.proteinCoefficient ?? 0;
-          final fatCoefficient = profile.fatCoefficient ?? 0;
-          proteinFatUnits =
-              (nutrients.protein * proteinCoefficient) +
-              (nutrients.fat * fatCoefficient);
-          explanation.add(
-            '蛋白质/脂肪部分 = ${_fmt(nutrients.protein)} × ${_fmt(proteinCoefficient)} + '
-            '${_fmt(nutrients.fat)} × ${_fmt(fatCoefficient)} = ${_fmt(proteinFatUnits)} U',
-          );
-          break;
-        case ProteinFatFormulaType.equivalentCarbs:
-          final proteinCoefficient = profile.proteinCoefficient ?? 0;
-          final fatCoefficient = profile.fatCoefficient ?? 0;
-          final equivalentCarbs =
-              (nutrients.protein * proteinCoefficient) +
-              (nutrients.fat * fatCoefficient);
-          proteinFatUnits = equivalentCarbs / profile.carbRatio;
-          explanation.add(
-            '蛋白质/脂肪等效碳水 = ${_fmt(nutrients.protein)} × ${_fmt(proteinCoefficient)} + '
-            '${_fmt(nutrients.fat)} × ${_fmt(fatCoefficient)} = ${_fmt(equivalentCarbs)} g',
-          );
-          explanation.add(
-            '蛋白质/脂肪部分 = ${_fmt(equivalentCarbs)} ÷ ${_fmt(profile.carbRatio)} = ${_fmt(proteinFatUnits)} U',
-          );
-          break;
-        case ProteinFatFormulaType.totalGrams:
-          final ratio = profile.proteinCoefficient ?? 0;
-          final grams = nutrients.protein + nutrients.fat;
-          proteinFatUnits = grams / ratio;
-          explanation.add(
-            '蛋白质/脂肪部分 = (${_fmt(nutrients.protein)} + ${_fmt(nutrients.fat)}) ÷ ${_fmt(ratio)} '
-            '= ${_fmt(proteinFatUnits)} U',
-          );
-          break;
+      proteinFatUnits = _evaluateFormula(
+        formula: profile.proteinFatFormula,
+        variables: variables,
+        fieldName: 'proteinFatFormula',
+        label: '蛋白质/脂肪公式',
+      );
+      explanation.add(
+        '${_proteinFatLabel(profile.formulaType)} = ${FormulaEvaluator.explain(profile.proteinFatFormula, variables, formatter: _fmt)} = ${_fmt(proteinFatUnits)} U',
+      );
+      if (profile.formulaType == ProteinFatFormulaType.fpu) {
+        explanation.add('100千卡=1U=1FPU');
       }
     } else {
       explanation.add('蛋白质/脂肪部分已关闭');
     }
+
+    final isf = _evaluateFormula(
+      formula: profile.isfFormula,
+      variables: variables,
+      fieldName: 'isfFormula',
+      label: 'ISF 公式',
+    );
+    explanation.add(
+      'ISF = ${FormulaEvaluator.explain(profile.isfFormula, variables, formatter: _fmt)} = ${_fmt(isf)}',
+    );
 
     final totalUnits = carbUnits + proteinFatUnits;
     final roundedTotalUnits = roundToIncrement(
@@ -193,9 +180,46 @@ class InsulinCalculator {
   }
 
   static String _fmt(double value) {
-    final rounded = value.toStringAsFixed(2);
-    return rounded
-        .replaceFirst(RegExp(r'\.00$'), '')
-        .replaceFirst(RegExp(r'(\.\d)0$'), r'$1');
+    return formatNumber(value);
+  }
+
+  static String _proteinFatLabel(ProteinFatFormulaType type) {
+    switch (type) {
+      case ProteinFatFormulaType.massBased:
+        return '蛋白质/脂肪部分（质量法）';
+      case ProteinFatFormulaType.fpu:
+        return '蛋白质/脂肪部分（FPU法）';
+      case ProteinFatFormulaType.custom:
+        return '蛋白质/脂肪部分（自定义）';
+    }
+  }
+
+  static Map<String, double> _baseVariables(InsulinProfile profile) {
+    return {
+      'carb_ratio': profile.carbRatio,
+      if (profile.totalDailyInsulin != null)
+        'total_daily_insulin': profile.totalDailyInsulin!,
+      if (profile.carbRule != null) 'carb_rule': profile.carbRule!,
+      if (profile.proteinFatBase != null)
+        'protein_fat_base': profile.proteinFatBase!,
+      if (profile.correctionStandard != null)
+        'correction_standard': profile.correctionStandard!,
+      if (profile.proteinCoefficient != null)
+        'protein_coefficient': profile.proteinCoefficient!,
+      if (profile.fatCoefficient != null) 'fat_coefficient': profile.fatCoefficient!,
+    };
+  }
+
+  static double _evaluateFormula({
+    required String formula,
+    required Map<String, double> variables,
+    required String fieldName,
+    required String label,
+  }) {
+    try {
+      return FormulaEvaluator.evaluate(formula, variables);
+    } on FormulaEvaluationException catch (error) {
+      throw ArgumentError.value(formula, fieldName, '$label：${error.message}');
+    }
   }
 }
