@@ -253,10 +253,23 @@ void main() {
             updated_at TEXT NOT NULL
           )
         ''');
-          await db.insert('foods', {
-            'id': 'legacy-rice',
-            'name': '米饭',
-            'normalized_name': '米饭',
+         await db.insert('insulin_profiles', {
+           'id': 'legacy-profile',
+           'name': '旧方案',
+           'carb_ratio': 12.0,
+           'protein_fat_enabled': 1,
+           'formula_type': '合计克数',
+           'protein_coefficient': 8.0,
+           'fat_coefficient': null,
+           'rounding_increment': 0.5,
+           'enabled': 1,
+           'created_at': '2026-01-01T00:00:00.000',
+           'updated_at': '2026-01-01T00:00:00.000',
+         });
+         await db.insert('foods', {
+           'id': 'legacy-rice',
+           'name': '米饭',
+           'normalized_name': '米饭',
             'aliases': '白米饭|熟米饭',
             'category': '谷薯类',
             'carbs_g_per_100': 25.9,
@@ -274,8 +287,15 @@ void main() {
       await database.ensureReady();
 
       final foods = await database.searchFoods('白 米 饭');
+      final profiles = await database.listInsulinProfiles();
 
       expect(foods.any((food) => food.id == 'legacy-rice'), isTrue);
+      expect(profiles.single.totalDailyInsulin, 12);
+      expect(profiles.single.carbRule, 1);
+      expect(profiles.single.proteinFatBase, 4);
+      expect(profiles.single.proteinFatFormula, '(protein + fat) / protein_coefficient');
+      expect(profiles.single.cirFormula, InsulinProfile.defaultCirFormula);
+      expect(profiles.single.isfFormula, InsulinProfile.defaultIsfFormula);
 
       await database.close();
       await tempDir.delete(recursive: true);
@@ -295,14 +315,8 @@ void main() {
     await reopenedDatabase.ensureReady();
     final reopenedFoods = await reopenedDatabase.searchFoods('');
 
-    expect(firstFoods.length, 5);
-    expect(firstFoods.map((food) => food.name).toSet(), {
-      '米饭',
-      '西红柿',
-      '苹果',
-      '鸡胸肉',
-      '鸡蛋',
-    });
+    expect(firstFoods.length, 1);
+    expect(firstFoods.map((food) => food.name).toSet(), {'米饭'});
     expect(reopenedFoods.length, firstFoods.length);
     expect(
       reopenedFoods.map((food) => food.name).toSet(),
@@ -323,14 +337,8 @@ void main() {
     await Future.wait([database.ensureReady(), database.ensureReady()]);
     final foods = await database.searchFoods('');
 
-    expect(foods.length, 5);
-    expect(foods.map((food) => food.name).toSet(), {
-      '米饭',
-      '西红柿',
-      '苹果',
-      '鸡胸肉',
-      '鸡蛋',
-    });
+    expect(foods.length, 1);
+    expect(foods.map((food) => food.name).toSet(), {'米饭'});
 
     await database.close();
     await tempDir.delete(recursive: true);

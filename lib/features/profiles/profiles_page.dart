@@ -104,9 +104,11 @@ class _ProfilesPageState extends State<ProfilesPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '碳水系数：${formatNumber(profile.carbRatio)} g/U',
+                                'CIR：${formatNumber(profile.carbRatio)} g/U',
                               ),
                               Text('蛋白质/脂肪：${profile.formulaSummary}'),
+                              Text('碳水公式：${profile.carbInsulinFormula}'),
+                              Text('ISF 公式：${profile.isfFormula}'),
                               Text(
                                 '舍入模式：${profile.roundingIncrement == 0 ? '不舍入' : '${formatNumber(profile.roundingIncrement)} U'}',
                               ),

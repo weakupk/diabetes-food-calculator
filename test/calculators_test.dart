@@ -1,8 +1,17 @@
 import 'package:diabetes_food_calculator/core/calculators.dart';
+import 'package:diabetes_food_calculator/core/formatters.dart';
 import 'package:diabetes_food_calculator/core/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('formatNumber', () {
+    test('keeps decimal points instead of replacing them with dollar signs', () {
+      expect(formatNumber(25.1), '25.1');
+      expect(formatNumber(2.1), '2.1');
+      expect(formatNumber(25.12), '25.12');
+    });
+  });
+
   group('NutritionCalculator', () {
     test('150g rice should calculate all three nutrients', () {
       final result = NutritionCalculator.calculate(
@@ -54,41 +63,23 @@ void main() {
   group('InsulinCalculator', () {
     const nutrients = Nutrients(carbs: 46.65, protein: 35.22, fat: 3.13);
 
-    test(
-      'direct weighted formula should split carb and protein/fat insulin',
-      () {
-        const profile = InsulinProfile(
-          id: '1',
-          name: 'direct',
-          carbRatio: 10,
-          proteinFatEnabled: true,
-          formulaType: ProteinFatFormulaType.directWeighted,
-          proteinCoefficient: 0.1,
-          fatCoefficient: 0.05,
-          roundingIncrement: 0.5,
-          enabled: true,
-        );
-
-        final result = InsulinCalculator.calculate(
-          nutrients: nutrients,
-          profile: profile,
-        );
-
-        expect(result.carbUnits, closeTo(4.665, 0.001));
-        expect(result.proteinFatUnits, closeTo(3.6785, 0.001));
-        expect(result.roundedTotalUnits, closeTo(8.5, 0.001));
-      },
-    );
-
-    test('equivalent carbs formula should work', () {
+    test('mass-based formula should split carb and protein/fat insulin', () {
       const profile = InsulinProfile(
-        id: '2',
-        name: 'equivalent',
-        carbRatio: 12,
+        id: '1',
+        name: 'mass',
+        carbRatio: 0.08,
+        totalDailyInsulin: 40,
+        carbRule: 500,
+        proteinFatBase: 10,
+        correctionStandard: 180,
         proteinFatEnabled: true,
-        formulaType: ProteinFatFormulaType.equivalentCarbs,
-        proteinCoefficient: 0.5,
-        fatCoefficient: 0.2,
+        formulaType: ProteinFatFormulaType.massBased,
+        proteinCoefficient: null,
+        fatCoefficient: null,
+        cirFormula: 'total_daily_insulin / carb_rule',
+        carbInsulinFormula: 'carbs / cir',
+        proteinFatFormula: '(protein + fat) / 2 / protein_fat_base',
+        isfFormula: 'correction_standard / total_daily_insulin / 18',
         roundingIncrement: 0.5,
         enabled: true,
       );
@@ -98,21 +89,30 @@ void main() {
         profile: profile,
       );
 
-      expect(result.carbUnits, closeTo(3.8875, 0.001));
-      expect(result.proteinFatUnits, closeTo(1.519333, 0.001));
-      expect(result.roundedTotalUnits, closeTo(5.5, 0.001));
+      expect(result.carbUnits, closeTo(583.125, 0.001));
+      expect(result.proteinFatUnits, closeTo(1.9175, 0.001));
+      expect(result.roundedTotalUnits, closeTo(585, 0.001));
+      expect(result.explanation.first, contains('CIR = 40 ÷ 500 = 0.08'));
     });
 
-    test('total grams formula should work', () {
+    test('fpu formula should work and keep explanation note', () {
       const profile = InsulinProfile(
-        id: '3',
-        name: 'grams',
-        carbRatio: 10,
+        id: '2',
+        name: 'fpu',
+        carbRatio: 0.08,
+        totalDailyInsulin: 40,
+        carbRule: 500,
+        proteinFatBase: null,
+        correctionStandard: 180,
         proteinFatEnabled: true,
-        formulaType: ProteinFatFormulaType.totalGrams,
-        proteinCoefficient: 20,
+        formulaType: ProteinFatFormulaType.fpu,
+        proteinCoefficient: null,
         fatCoefficient: null,
-        roundingIncrement: 1,
+        cirFormula: 'total_daily_insulin / carb_rule',
+        carbInsulinFormula: 'carbs / cir',
+        proteinFatFormula: '((protein * 4) + (fat * 9)) / 100',
+        isfFormula: 'correction_standard / total_daily_insulin / 18',
+        roundingIncrement: 0.5,
         enabled: true,
       );
 
@@ -121,8 +121,11 @@ void main() {
         profile: profile,
       );
 
-      expect(result.proteinFatUnits, closeTo((35.22 + 3.13) / 20, 0.001));
-      expect(result.roundedTotalUnits, equals(7));
+      expect(
+        result.proteinFatUnits,
+        closeTo(((35.22 * 4) + (3.13 * 9)) / 100, 0.001),
+      );
+      expect(result.explanation, contains('100千卡=1U=1FPU'));
     });
 
     test('rounding increment should round to nearest step', () {
@@ -138,11 +141,19 @@ void main() {
       const profile = InsulinProfile(
         id: 'no-rounding',
         name: 'no rounding',
-        carbRatio: 10,
+        carbRatio: 0.08,
+        totalDailyInsulin: 40,
+        carbRule: 500,
+        proteinFatBase: 10,
+        correctionStandard: 180,
         proteinFatEnabled: true,
-        formulaType: ProteinFatFormulaType.directWeighted,
-        proteinCoefficient: 0.1,
-        fatCoefficient: 0.05,
+        formulaType: ProteinFatFormulaType.massBased,
+        proteinCoefficient: null,
+        fatCoefficient: null,
+        cirFormula: 'total_daily_insulin / carb_rule',
+        carbInsulinFormula: 'carbs / cir',
+        proteinFatFormula: '(protein + fat) / 2 / protein_fat_base',
+        isfFormula: 'correction_standard / total_daily_insulin / 18',
         roundingIncrement: 0,
         enabled: true,
       );
@@ -153,59 +164,60 @@ void main() {
       );
 
       expect(result.roundedTotalUnits, closeTo(result.totalUnits, 0.0001));
-      expect(
-        result.explanation.last,
-        contains('舍入模式：不舍入'),
-      );
+      expect(result.explanation.last, contains('舍入模式：不舍入'));
     });
 
-    test('invalid coefficients should throw', () {
-      const invalidCarbRatio = InsulinProfile(
-        id: '4',
-        name: 'invalid carb',
-        carbRatio: 0,
+    test('invalid formulas should throw readable argument errors', () {
+      const invalidDivision = InsulinProfile(
+        id: 'invalid-division',
+        name: 'invalid division',
+        carbRatio: 1,
+        totalDailyInsulin: 40,
+        carbRule: 0,
+        proteinFatBase: 10,
+        correctionStandard: 180,
         proteinFatEnabled: false,
-        formulaType: ProteinFatFormulaType.directWeighted,
+        formulaType: ProteinFatFormulaType.massBased,
         proteinCoefficient: null,
         fatCoefficient: null,
+        cirFormula: 'total_daily_insulin / carb_rule',
+        carbInsulinFormula: 'carbs / cir',
+        proteinFatFormula: '(protein + fat) / 2 / protein_fat_base',
+        isfFormula: 'correction_standard / total_daily_insulin / 18',
         roundingIncrement: 0.5,
         enabled: true,
-      );
-      expect(
-        () => InsulinCalculator.calculate(
-          nutrients: nutrients,
-          profile: invalidCarbRatio,
-        ),
-        throwsArgumentError,
       );
 
-      const invalidPfRatio = InsulinProfile(
-        id: '5',
-        name: 'invalid pf',
-        carbRatio: 10,
-        proteinFatEnabled: true,
-        formulaType: ProteinFatFormulaType.totalGrams,
-        proteinCoefficient: 0,
-        fatCoefficient: null,
-        roundingIncrement: 0.5,
-        enabled: true,
-      );
       expect(
         () => InsulinCalculator.calculate(
           nutrients: nutrients,
-          profile: invalidPfRatio,
+          profile: invalidDivision,
         ),
-        throwsArgumentError,
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.message.toString(),
+            'message',
+            contains('除数不能为 0'),
+          ),
+        ),
       );
 
       const invalidRounding = InsulinProfile(
-        id: '6',
+        id: 'invalid-rounding',
         name: 'invalid rounding',
-        carbRatio: 10,
+        carbRatio: 1,
+        totalDailyInsulin: 40,
+        carbRule: 500,
+        proteinFatBase: 10,
+        correctionStandard: 180,
         proteinFatEnabled: false,
-        formulaType: ProteinFatFormulaType.directWeighted,
+        formulaType: ProteinFatFormulaType.massBased,
         proteinCoefficient: null,
         fatCoefficient: null,
+        cirFormula: 'total_daily_insulin / carb_rule',
+        carbInsulinFormula: 'carbs / cir',
+        proteinFatFormula: '(protein + fat) / 2 / protein_fat_base',
+        isfFormula: 'correction_standard / total_daily_insulin / 18',
         roundingIncrement: -0.5,
         enabled: true,
       );
