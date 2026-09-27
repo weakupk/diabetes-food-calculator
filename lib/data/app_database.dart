@@ -102,16 +102,19 @@ class AppDatabase {
             await db.update(
               'insulin_profiles',
               {
-                'total_daily_insulin': carbRatio,
-                'carb_rule': 1.0,
+                'total_daily_insulin': null,
+                'carb_rule': null,
                 'protein_fat_base':
                     formulaType == '合计克数' && proteinCoefficient != null
-                    ? proteinCoefficient / 2
-                    : 1.0,
-                'correction_standard': 1.0,
+                    ? proteinCoefficient
+                    : null,
+                'correction_standard': null,
+                'cir_formula': 'carb_ratio',
+                'carb_insulin_formula': InsulinProfile.defaultCarbInsulinFormula,
                 'protein_fat_formula': _migratedProteinFatFormula(
                   formulaType: formulaType,
                 ),
+                'isf_formula': '1',
               },
               where: 'id = ?',
               whereArgs: [row['id']],

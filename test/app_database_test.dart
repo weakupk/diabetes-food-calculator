@@ -292,7 +292,7 @@ void main() {
       expect(foods.any((food) => food.id == 'legacy-rice'), isTrue);
       expect(profiles.single.totalDailyInsulin, 12);
       expect(profiles.single.carbRule, 1);
-      expect(profiles.single.proteinFatBase, 4);
+      expect(profiles.single.proteinFatBase, 8);
       expect(profiles.single.proteinFatFormula, '(protein + fat) / protein_coefficient');
       expect(profiles.single.cirFormula, InsulinProfile.defaultCirFormula);
       expect(profiles.single.isfFormula, InsulinProfile.defaultIsfFormula);
